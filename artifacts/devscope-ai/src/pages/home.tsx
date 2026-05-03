@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Search, ArrowRight, Zap, Target, Brain, ChevronRight } from "lucide-react";
+import { Search, ArrowRight, Zap, Target, Brain, ChevronRight, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -8,6 +8,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useScrollReveal, useStaggerEntrance, useCardHover } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
+import { useAuth } from "@/hooks/useAuth";
 
 const Hero3D = React.lazy(() => import("@/components/home/Hero3D"));
 
@@ -15,20 +16,27 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function Home() {
   const [, setLocation] = useLocation();
+  const { user, oauthEnabled, login } = useAuth();
   const pageRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
-  const ctaRef = useRef<HTMLDivElement>(null);
+
+  // Pre-fill input with logged-in user's username
+  const [username, setUsername] = useState("");
+  useEffect(() => {
+    if (user?.username) setUsername(user.username);
+  }, [user?.username]);
 
   useScrollReveal(pageRef, ".reveal");
   useStaggerEntrance(featuresRef, ".feature-card", { delay: 0.1, stagger: 0.12 });
 
   const handleAnalyze = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const username = formData.get("username") as string;
-    if (username.trim()) {
-      setLocation(`/analyze/${username.trim()}`);
-    }
+    const val = username.trim();
+    if (val) setLocation(`/analyze/${val}`);
+  };
+
+  const handleAnalyzeMyProfile = () => {
+    if (user?.username) setLocation(`/analyze/${user.username}`);
   };
 
   return (
@@ -80,6 +88,7 @@ export default function Home() {
               Start knowing.
             </motion.p>
 
+            {/* Search form — username pre-filled if logged in */}
             <motion.form
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -89,7 +98,9 @@ export default function Home() {
             >
               <Input
                 name="username"
-                placeholder="Enter GitHub Username..."
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter GitHub Username…"
                 className="h-16 text-lg px-6 border-4 border-black rounded-none shadow-[6px_6px_0_0_#000] focus-visible:ring-0 focus-visible:shadow-[8px_8px_0_0_#000] transition-all bg-white flex-1 font-medium"
                 required
               />
@@ -102,17 +113,45 @@ export default function Home() {
               </Button>
             </motion.form>
 
+            {/* CTA row: login or analyze my profile */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="flex items-center gap-6 text-sm font-bold uppercase tracking-wide text-black/60"
+              transition={{ delay: 0.65 }}
+              className="flex flex-col sm:flex-row items-center gap-4"
             >
-              <span>✓ Free to use</span>
-              <span className="w-1.5 h-1.5 bg-black rounded-full" />
-              <span>✓ No account needed</span>
-              <span className="w-1.5 h-1.5 bg-black rounded-full" />
-              <span>✓ AI-powered</span>
+              {user ? (
+                /* Logged in — quick shortcut */
+                <Button
+                  onClick={handleAnalyzeMyProfile}
+                  className="h-12 px-8 text-base font-bold border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black shadow-[4px_4px_0_0_#FF8D3F] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"
+                >
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.username}
+                    className="w-5 h-5 border border-white/50 rounded-none"
+                  />
+                  Analyze My Profile (@{user.username})
+                </Button>
+              ) : oauthEnabled ? (
+                /* Not logged in — offer login */
+                <Button
+                  onClick={login}
+                  variant="outline"
+                  className="h-12 px-8 text-base font-bold border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white shadow-[4px_4px_0_0_#000] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"
+                >
+                  <Github className="w-5 h-5" />
+                  Login to auto-fill your username
+                </Button>
+              ) : null}
+
+              <div className="flex items-center gap-5 text-sm font-bold uppercase tracking-wide text-black/60">
+                <span>✓ Free to use</span>
+                <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                <span>✓ No account needed</span>
+                <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                <span>✓ AI-powered</span>
+              </div>
             </motion.div>
           </motion.div>
 
@@ -172,7 +211,7 @@ export default function Home() {
         <section className="reveal w-full py-20 px-6 border-t-4 border-b-4 border-black bg-black text-white">
           <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             {[
-              { num: "5", label: "Scoring categories" },
+              { num: "5",  label: "Scoring categories" },
               { num: "100", label: "Point scale" },
               { num: "AI", label: "Powered insights" },
             ].map(({ num, label }) => (
@@ -192,6 +231,8 @@ export default function Home() {
             <form onSubmit={handleAnalyze} className="flex flex-col sm:flex-row w-full max-w-lg mx-auto gap-3 items-stretch">
               <Input
                 name="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 placeholder="e.g. torvalds"
                 className="h-14 text-lg border-2 border-black rounded-none shadow-[4px_4px_0_0_#000] focus-visible:ring-0 bg-background flex-1 font-medium"
                 required
@@ -211,7 +252,7 @@ export default function Home() {
 }
 
 function FeatureCard({
-  icon, title, desc, rotation, color, textColor = "text-black", index,
+  icon, title, desc, rotation, color, textColor = "text-black",
 }: {
   icon: React.ReactNode;
   title: string;
