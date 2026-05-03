@@ -1,6 +1,7 @@
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { greeterBus } from "@/lib/greeterBus";
 import gsap from "gsap";
 import {
   useAnalyzeGithubUser,
@@ -168,6 +169,15 @@ export default function Analyze() {
       toast({ title: "Copy failed", description: "Please copy the URL manually.", variant: "destructive" });
     }
   };
+
+  // Notify greeter character with score when analysis data first loads
+  const scoreSentRef = useRef(false);
+  useEffect(() => {
+    if (data && !scoreSentRef.current) {
+      scoreSentRef.current = true;
+      greeterBus.emit({ type: "score", score: data.scoreBreakdown.total });
+    }
+  }, [data]);
 
   // Auto-generate weekly plan once analysis data is ready
   useEffect(() => {

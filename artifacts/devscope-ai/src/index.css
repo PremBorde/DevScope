@@ -263,3 +263,30 @@
   85%  { transform: rotate(10deg);  }
   100% { transform: rotate(0deg);   }
 }
+@keyframes greeter-jump {
+  0%   { transform: translateY(0px);   }
+  25%  { transform: translateY(-30px); }
+  50%  { transform: translateY(-36px); }
+  75%  { transform: translateY(-22px); }
+  90%  { transform: translateY(-4px);  }
+  100% { transform: translateY(0px);   }
+}
+@keyframes greeter-idle-tap {
+  0%, 100% { transform: rotate(0deg);  }
+  30%       { transform: rotate(14deg); }
+  60%       { transform: rotate(0deg);  }
+}
+@keyframes greeter-click-jump {
+  0%   { transform: translateY(0px);  }
+  30%  { transform: translateY(-22px);}
+  60%  { transform: translateY(-26px);}
+  80%  { transform: translateY(-10px);}
+  100% { transform: translateY(0px);  }
+}
+@keyframes greeter-shake {
+  0%, 100% { transform: translateX(0);   }
+  20%       { transform: translateX(-6px);}
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px);}
+  80%       { transform: translateX(4px); }
+}
