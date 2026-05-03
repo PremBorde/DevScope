@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowRight, Zap, Target, Brain, ChevronRight, Github } from "lucide-react";
-import { greeterBus, consumeInputBlurSuppressed } from "@/lib/greeterBus";
+import { greeterBus } from "@/lib/greeterBus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -87,14 +87,6 @@ export default function Home() {
       greeterBus.emit({ type: "typing", value: val });
     }
   };
-
-  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (watchingSentRef.current) {
-      if (consumeInputBlurSuppressed()) return; // user grabbed the character — stay
-      greeterBus.emit({ type: "inputBlur", value: e.target.value });
-      watchingSentRef.current = false;
-    }
-  };
   useEffect(() => {
     if (user?.username) setUsername(user.username);
   }, [user?.username]);
@@ -105,11 +97,22 @@ export default function Home() {
   const handleAnalyze = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const val = username.trim();
-    if (val) setLocation(`/analyze/${val}`);
+    if (!val) return;
+    if (watchingSentRef.current) {
+      greeterBus.emit({ type: "inputBlur", value: val });
+      watchingSentRef.current = false;
+    }
+    setLocation(`/analyze/${val}`);
   };
 
   const handleAnalyzeMyProfile = () => {
-    if (user?.username) setLocation(`/analyze/${user.username}`);
+    const val = user?.username;
+    if (!val) return;
+    if (watchingSentRef.current) {
+      greeterBus.emit({ type: "inputBlur", value: val });
+      watchingSentRef.current = false;
+    }
+    setLocation(`/analyze/${val}`);
   };
 
   return (
@@ -173,7 +176,6 @@ export default function Home() {
                 value={username}
                 onChange={handleInputChange}
                 onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
                 placeholder="Enter GitHub Username…"
                 className="h-16 text-lg px-6 border-4 border-black rounded-none shadow-[6px_6px_0_0_#000] focus-visible:ring-0 focus-visible:shadow-[8px_8px_0_0_#000] transition-all bg-white flex-1 font-medium"
                 required

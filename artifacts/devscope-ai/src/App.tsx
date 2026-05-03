@@ -113,6 +113,11 @@ function Router() {
       null;
 
     setNavGreeter({ msg, speed, hat, ts: now });
+
+    // Walk the watcher off if the user navigated away without submitting
+    if (location !== "/") {
+      setWatcherGreeter((prev) => prev ? { ...prev, shouldExit: true } : null);
+    }
   }, [location]);
 
   /* ── AFK detector — 3-minute idle ───────────────────── */
