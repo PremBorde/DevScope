@@ -14,6 +14,7 @@
 6. [Update 6 — GitHub OAuth Authentication (Optional)](#update-6)
 7. [Update 7 — User History Tracking + Growth Over Time Chart](#update-7)
 8. [Update 8 — AI Improvement Roadmap ("Your Action Plan")](#update-8)
+9. [Update 9 — Score Improvement Tracking ("Your Growth Over Time")](#update-9)
 
 ---
 
@@ -924,3 +925,107 @@ const [collapsed, setCollapsed] = useState<Set<string>>(new Set()); // phase key
 - `curl http://localhost:80/api/roadmap/torvalds` → 200 in ~10s with 4 phases × 3 personalized actions
 - `pnpm --filter @workspace/devscope-ai exec tsc --noEmit` → 0 errors
 - No browser console errors after clean Vite restart
+
+---
+
+<a name="update-9"></a>
+## Update 9 — Score Improvement Tracking ("Your Growth Over Time")
+
+**Date:** May 3, 2026
+**Type:** Feature — Retention / Progress Visualization
+
+---
+
+### Overview
+
+Added a dedicated score trend tracker directly inside the Dashboard. Users (or hiring managers) can type any GitHub username and instantly see a chronological line chart of every score ever recorded, an "Overall Change: +X points" banner, the latest score highlighted, and a direct link to re-analyze if no history exists yet.
+
+---
+
+### Backend — `GET /api/analyses/trend/:username` (`routes/analyses.ts`)
+
+New router registered at `/analyses` in `routes/index.ts`.
+
+**Logic:**
+- Fetches all rows for the username from the `analyses` PostgreSQL table
+- Sorts chronologically **ascending** (`analyzedAt ASC`) — oldest first
+- Returns `[{ date: "YYYY-MM-DD", score: number }]`
+
+**Route:** `GET /api/analyses/trend/:username` → `200 ScoreTrendPoint[]`
+
+Also fixed a pre-existing TypeScript error in `passport.ts` (implicit `any` on OAuth callback params).
+
+---
+
+### OpenAPI Spec + Codegen
+
+New schema and endpoint added to `lib/api-spec/openapi.yaml`:
+
+| Schema | Fields |
+|---|---|
+| `ScoreTrendPoint` | `date: string`, `score: number` |
+
+New path: `GET /analyses/trend/{username}` with `operationId: getScoreTrend`, tag: `analyses`.
+
+Codegen regenerated `useGetScoreTrend`, `getGetScoreTrendQueryKey`, `ScoreTrendPoint` type.
+
+---
+
+### Frontend — "Your Growth Over Time" (Dashboard)
+
+Added as a full-width Neobrutalist card between the Charts Row and the Recent Analyses table in `pages/dashboard.tsx`.
+
+**Section header:**
+- "SCORE TRACKING" orange eyebrow label
+- "Your Growth Over Time" heading
+- Subtitle: "Enter any GitHub username to visualize their score history"
+- **Overall Change badge** (top-right) — green background for positive, red for negative, grey for flat; shows `TrendingUp`/`TrendingDown`/`Minus` icon + "Overall Change: +X points"
+
+**Username search row:**
+- Text input with search icon — press Enter or click "TRACK"
+- Neobrutalist "TRACK" button with hard shadow + hover lift
+
+**Chart states:**
+| State | Display |
+|---|---|
+| No username entered | Dashed border placeholder with TrendingUp icon |
+| Loading | Spinner + "Loading trend for @username…" |
+| No data found | Dashed border + "Analyze Now →" button linking to `/analyze/:username` |
+| Single data point | Score card showing date + score |
+| 2+ data points | Full interactive LineChart |
+
+**LineChart (Recharts):**
+- Orange → green gradient stroke (`linearGradient` SVG def)
+- Stroke width 3, `animationDuration: 1200ms`, `animationEasing: ease-out`
+- **Custom latest-score dot** — large filled circle (r=10) + white center dot (r=5), coloured by score tier (green/orange/red)
+- `activeDot` — orange fill with black border on hover
+- **ReferenceDot label** on the latest point — shows `"N ★"` in score colour above the line
+- **Custom tooltip** — Neobrutalist bordered box showing score in score colour + "/ 100"
+- X-axis: date formatted as `MM/DD`; Y-axis: domain `[min-10, 100]`
+
+**Stats row above chart:**
+- Latest score (coloured, underlined with score colour)
+- Total analyses count
+- "From" date (first analysis date)
+
+---
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `artifacts/api-server/src/routes/analyses.ts` | Created — trend route |
+| `artifacts/api-server/src/routes/index.ts` | Registered `/analyses` |
+| `artifacts/api-server/src/config/passport.ts` | Fixed implicit-any TS errors |
+| `lib/api-spec/openapi.yaml` | Added `ScoreTrendPoint` schema + endpoint |
+| `lib/api-client-react/src/generated/` | Regenerated — `useGetScoreTrend` + types |
+| `artifacts/devscope-ai/src/pages/dashboard.tsx` | Added "Your Growth Over Time" section |
+
+---
+
+### Verified
+
+- `curl http://localhost:80/api/analyses/trend/torvalds` → `[{date,score}, ...]` 200 in 29ms
+- Frontend TS: zero errors (`tsc --noEmit`)
+- Dashboard renders with empty-state placeholder, full chart on username entry, "Overall Change" badge
+- No browser console errors

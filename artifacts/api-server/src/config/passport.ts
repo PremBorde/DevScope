@@ -35,14 +35,15 @@ export function configurePassport(): void {
   passport.use(
     new GitHubStrategy(
       { clientID, clientSecret, callbackURL },
-      (_accessToken, _refreshToken, profile, done) => {
+      (_accessToken: string, _refreshToken: string, profile: passport.Profile, done: (err: unknown, user?: Express.User | false) => void) => {
+        const ghProfile = profile as passport.Profile & { profileUrl?: string };
         const user: GithubSessionUser = {
           githubId: profile.id,
           username: profile.username ?? profile.displayName ?? "unknown",
           displayName: profile.displayName ?? null,
           avatarUrl: profile.photos?.[0]?.value ?? "",
           profileUrl:
-            profile.profileUrl ??
+            ghProfile.profileUrl ??
             `https://github.com/${profile.username ?? ""}`,
         };
         logger.info({ username: user.username }, "GitHub OAuth login successful");

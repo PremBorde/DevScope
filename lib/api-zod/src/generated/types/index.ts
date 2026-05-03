@@ -23,3 +23,4 @@ export * from "./roadmapAction";
 export * from "./roadmapActionPriority";
 export * from "./roadmapPhase";
 export * from "./scoreBreakdown";
+export * from "./scoreTrendPoint";

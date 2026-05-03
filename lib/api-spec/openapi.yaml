@@ -14,6 +14,8 @@ tags:
     description: GitHub profile analysis
   - name: history
     description: Analysis history
+  - name: analyses
+    description: Score trend and analysis data
 paths:
   /healthz:
     get:
@@ -112,6 +114,40 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AnalysisSummary"
+
+  /analyses/trend/{username}:
+    get:
+      operationId: getScoreTrend
+      tags: [analyses]
+      summary: Get score trend for a GitHub user
+      description: Returns all historical scores for a username sorted chronologically (oldest first)
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Score trend data points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreTrendPoint"
+        "400":
+          description: Invalid username
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /roadmap/{username}:
     get:
@@ -366,6 +402,19 @@ components:
         - hiringRecommendation
         - analyzedAt
         - topLanguages
+
+    ScoreTrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          description: ISO date string (YYYY-MM-DD)
+        score:
+          type: number
+          description: Score value at that date (0-100)
+      required:
+        - date
+        - score
 
     RoadmapAction:
       type: object

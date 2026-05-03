@@ -167,7 +167,7 @@ Return ONLY valid JSON:
 
 // GET /roadmap/:username
 router.get("/:username", async (req: Request, res: Response) => {
-  const username = req.params.username?.trim().toLowerCase();
+  const username = (req.params.username as string)?.trim().toLowerCase();
   if (!username) {
     res.status(400).json({ error: "validation_error", message: "Username is required" });
     return;

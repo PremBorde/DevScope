@@ -100,6 +100,13 @@ export interface AnalysisSummary {
   topLanguages: string[];
 }
 
+export interface ScoreTrendPoint {
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** Score value at that date (0-100) */
+  score: number;
+}
+
 export type RoadmapActionPriority =
   (typeof RoadmapActionPriority)[keyof typeof RoadmapActionPriority];
 

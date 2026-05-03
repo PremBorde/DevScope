@@ -21,6 +21,7 @@ import type {
   HealthStatus,
   PlatformStats,
   Roadmap,
+  ScoreTrendPoint,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -381,6 +382,94 @@ export function useGetUserAnalysisHistory<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetUserAnalysisHistoryQueryOptions(username, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns all historical scores for a username sorted chronologically (oldest first)
+ * @summary Get score trend for a GitHub user
+ */
+export const getGetScoreTrendUrl = (username: string) => {
+  return `/api/analyses/trend/${username}`;
+};
+
+export const getScoreTrend = async (
+  username: string,
+  options?: RequestInit,
+): Promise<ScoreTrendPoint[]> => {
+  return customFetch<ScoreTrendPoint[]>(getGetScoreTrendUrl(username), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScoreTrendQueryKey = (username: string) => {
+  return [`/api/analyses/trend/${username}`] as const;
+};
+
+export const getGetScoreTrendQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScoreTrend>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getScoreTrend>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScoreTrendQueryKey(username);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getScoreTrend>>> = ({
+    signal,
+  }) => getScoreTrend(username, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!username,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getScoreTrend>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetScoreTrendQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScoreTrend>>
+>;
+export type GetScoreTrendQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get score trend for a GitHub user
+ */
+
+export function useGetScoreTrend<
+  TData = Awaited<ReturnType<typeof getScoreTrend>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getScoreTrend>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScoreTrendQueryOptions(username, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

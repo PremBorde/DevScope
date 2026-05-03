@@ -127,6 +127,20 @@ export const GetUserAnalysisHistoryResponse = zod.array(
 );
 
 /**
+ * Returns all historical scores for a username sorted chronologically (oldest first)
+ * @summary Get score trend for a GitHub user
+ */
+export const GetScoreTrendParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const GetScoreTrendResponseItem = zod.object({
+  date: zod.string().describe("ISO date string (YYYY-MM-DD)"),
+  score: zod.number().describe("Score value at that date (0-100)"),
+});
+export const GetScoreTrendResponse = zod.array(GetScoreTrendResponseItem);
+
+/**
  * Generates a personalized, structured improvement roadmap using Gemini AI based on the user's latest analysis
  * @summary Get AI improvement roadmap for a GitHub user
  */
