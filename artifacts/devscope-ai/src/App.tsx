@@ -78,17 +78,19 @@ function getMoodMessage(recentScores: number[]): string | null {
 }
 
 /* ── State shapes ────────────────────────────────────────── */
-interface NavGreeter   { msg: string; speed: "walk" | "run"; hat: HatType; ts: number; }
-interface ScoreGreeter { score: number; msg: string; hat: HatType; confetti: boolean; ts: number; }
-interface EventGreeter { msg: string; quick: boolean; side: "left" | "right"; hat?: HatType; ts: number; }
+interface NavGreeter     { msg: string; speed: "walk" | "run"; hat: HatType; ts: number; }
+interface ScoreGreeter   { score: number; msg: string; hat: HatType; confetti: boolean; ts: number; }
+interface EventGreeter   { msg: string; quick: boolean; side: "left" | "right"; hat?: HatType; ts: number; }
+interface WatcherGreeter { ts: number; msg: string; shouldExit: boolean; }
 
 /* ── Router ──────────────────────────────────────────────── */
 function Router() {
   const [location] = useLocation();
 
-  const [navGreeter,   setNavGreeter]   = useState<NavGreeter | null>(null);
-  const [scoreGreeter, setScoreGreeter] = useState<ScoreGreeter | null>(null);
-  const [eventGreeter, setEventGreeter] = useState<EventGreeter | null>(null);
+  const [navGreeter,     setNavGreeter]     = useState<NavGreeter | null>(null);
+  const [scoreGreeter,   setScoreGreeter]   = useState<ScoreGreeter | null>(null);
+  const [eventGreeter,   setEventGreeter]   = useState<EventGreeter | null>(null);
+  const [watcherGreeter, setWatcherGreeter] = useState<WatcherGreeter | null>(null);
 
   /* ── Navigation: speed, easter-egg, time-of-day, hat ─── */
   useEffect(() => {
@@ -159,7 +161,23 @@ function Router() {
       }
 
       if (e.type === "watching") {
-        setEventGreeter({ msg: "I'm watching! 👀", quick: true, side: "right", ts: Date.now() });
+        setWatcherGreeter({ ts: Date.now(), msg: "I'm watching! 👀", shouldExit: false });
+        return;
+      }
+
+      if (e.type === "typing") {
+        const msg = e.value ? `@${e.value.slice(0, 14)} 💻` : "I'm watching! 👀";
+        setWatcherGreeter((prev) => prev ? { ...prev, msg } : null);
+        return;
+      }
+
+      if (e.type === "inputBlur") {
+        const farewell = e.value.trim()
+          ? `Go get @${e.value.trim().slice(0, 12)}! 🚀`
+          : "Good luck! 🤞";
+        setWatcherGreeter((prev) =>
+          prev ? { ...prev, msg: farewell, shouldExit: true } : null,
+        );
         return;
       }
 
@@ -237,7 +255,7 @@ function Router() {
         />
       )}
 
-      {/* Event greeter — celebrate / watching / error */}
+      {/* Event greeter — celebrate / error */}
       {eventGreeter && (
         <HomeGreeter
           key={`evt-${eventGreeter.ts}`}
@@ -246,6 +264,18 @@ function Router() {
           quick={eventGreeter.quick}
           side={eventGreeter.side}
           onDone={() => setEventGreeter(null)}
+        />
+      )}
+
+      {/* Watcher greeter — persistent while user is typing in the input */}
+      {watcherGreeter && (
+        <HomeGreeter
+          key={`watch-${watcherGreeter.ts}`}
+          message={watcherGreeter.msg}
+          persistent={true}
+          shouldExit={watcherGreeter.shouldExit}
+          side="right"
+          onDone={() => setWatcherGreeter(null)}
         />
       )}
 

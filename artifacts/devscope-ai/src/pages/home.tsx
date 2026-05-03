@@ -79,6 +79,21 @@ export default function Home() {
       greeterBus.emit({ type: "watching" });
     }
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setUsername(val);
+    if (watchingSentRef.current) {
+      greeterBus.emit({ type: "typing", value: val });
+    }
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (watchingSentRef.current) {
+      greeterBus.emit({ type: "inputBlur", value: e.target.value });
+      watchingSentRef.current = false;
+    }
+  };
   useEffect(() => {
     if (user?.username) setUsername(user.username);
   }, [user?.username]);
@@ -155,8 +170,9 @@ export default function Home() {
               <Input
                 name="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={handleInputChange}
                 onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
                 placeholder="Enter GitHub Username…"
                 className="h-16 text-lg px-6 border-4 border-black rounded-none shadow-[6px_6px_0_0_#000] focus-visible:ring-0 focus-visible:shadow-[8px_8px_0_0_#000] transition-all bg-white flex-1 font-medium"
                 required

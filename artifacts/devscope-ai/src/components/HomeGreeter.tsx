@@ -11,6 +11,8 @@ interface Props {
   hat?:           HatType;
   confetti?:      boolean;
   quick?:         boolean;
+  persistent?:    boolean;
+  shouldExit?:    boolean;
   onDone?:        () => void;
 }
 
@@ -32,6 +34,8 @@ export default function HomeGreeter({
   hat           = null,
   confetti      = false,
   quick         = false,
+  persistent    = false,
+  shouldExit    = false,
   onDone,
 }: Props) {
   const [phase,         setPhase]        = useState<Phase>("entering");
@@ -64,6 +68,11 @@ export default function HomeGreeter({
   /* Phase sequence */
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
+    if (persistent) {
+      // Walk in and stay — never auto-exit; shouldExit prop drives the exit
+      const t1 = setTimeout(() => setPhase("greeting"), 1400);
+      return () => { cancelAnimationFrame(raf); clearTimeout(t1); };
+    }
     if (quick) {
       const t1 = setTimeout(() => setPhase("greeting"), 700);
       const t2 = setTimeout(() => setPhase("exiting"),  2000);
@@ -79,6 +88,15 @@ export default function HomeGreeter({
       clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
     };
   }, []);
+
+  /* shouldExit — external trigger to start exit sequence */
+  useEffect(() => {
+    if (!shouldExit) return;
+    if (phase === "done" || phase === "exiting") return;
+    setPhase("exiting");
+    const t = setTimeout(() => { setPhase("done"); onDone?.(); }, 1000);
+    return () => clearTimeout(t);
+  }, [shouldExit]);
 
   /* Idle foot-tap after 2 s of standing */
   useEffect(() => {
