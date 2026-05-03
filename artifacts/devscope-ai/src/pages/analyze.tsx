@@ -163,6 +163,18 @@ export default function Analyze() {
 
   usePageTitle(data ? `@${data.profile.login} — Score ${data.scoreBreakdown.total}/100` : username ? `Analyzing @${username}` : "Analyze");
 
+  // Must be declared before any conditional returns to satisfy Rules of Hooks
+  const langData = useMemo(
+    () => {
+      if (!data) return [] as { name: string; value: number }[];
+      return Object.entries(data.languageDistribution)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, pct]) => ({ name, value: pct }));
+    },
+    [data],
+  );
+
   const handleShareReport = async () => {
     const reportUrl = `${window.location.origin}${import.meta.env.BASE_URL}report/${username}`.replace(/\/\//g, "/").replace(":/", "://");
     try {
@@ -304,15 +316,6 @@ export default function Analyze() {
   if (!data) return null;
 
   const { profile, repoStats, languageDistribution, scoreBreakdown, aiInsights, analyzedAt, cached } = data;
-
-  const langData = useMemo(
-    () =>
-      Object.entries(languageDistribution)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([name, pct]) => ({ name, value: pct })),
-    [languageDistribution],
-  );
 
   const scoreColor = ScoreColor(scoreBreakdown.total);
 

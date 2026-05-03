@@ -4,32 +4,78 @@ import { Search, ArrowRight, Zap, Target, Brain, ChevronRight, Github } from "lu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useScrollReveal, useStaggerEntrance, useCardHover } from "@/hooks/useAnimations";
+import { useCardHover } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
 const Hero3D = React.lazy(() => import("@/components/home/Hero3D"));
 
-gsap.registerPlugin(ScrollTrigger);
+/**
+ * Lightweight scroll-reveal using IntersectionObserver + CSS transitions.
+ * Zero scroll-event overhead — replaces GSAP ScrollTrigger for this page.
+ */
+function useCSSReveal(containerRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+
+    const sections = root.querySelectorAll<HTMLElement>("section.scroll-reveal");
+    const cards    = root.querySelectorAll<HTMLElement>(".feature-card");
+
+    // Set initial hidden state via inline styles (overridden by class on enter)
+    sections.forEach((el) => {
+      el.style.opacity   = "0";
+      el.style.transform = "translateY(24px)";
+    });
+    cards.forEach((el) => {
+      el.style.opacity = "0";
+    });
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target as HTMLElement;
+          el.style.transition = "opacity 0.5s ease-out, transform 0.5s ease-out";
+          el.style.opacity    = "1";
+          // Sections get a translateY fade; feature-cards keep their rotation
+          if (!el.classList.contains("feature-card")) {
+            el.style.transform = "translateY(0)";
+          }
+          obs.unobserve(el);
+        });
+      },
+      { threshold: 0.08, rootMargin: "0px 0px -40px 0px" },
+    );
+
+    sections.forEach((el) => obs.observe(el));
+    cards.forEach((el, i) => {
+      // Stagger each card 80 ms apart
+      el.style.transitionDelay = `${i * 80}ms`;
+      obs.observe(el);
+    });
+
+    return () => {
+      obs.disconnect();
+      sections.forEach((el) => { el.style.cssText = ""; });
+      cards.forEach((el) => { el.style.cssText = ""; });
+    };
+  }, []);
+}
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const { user, oauthEnabled, login } = useAuth();
   const pageRef = useRef<HTMLDivElement>(null);
-  const featuresRef = useRef<HTMLDivElement>(null);
 
-  // Pre-fill input with logged-in user's username
   const [username, setUsername] = useState("");
   useEffect(() => {
     if (user?.username) setUsername(user.username);
   }, [user?.username]);
 
   usePageTitle("Analyze GitHub Like a Recruiter");
-  useScrollReveal(pageRef, ".reveal");
-  useStaggerEntrance(featuresRef, ".feature-card", { delay: 0.1, stagger: 0.12 });
+  useCSSReveal(pageRef);
 
   const handleAnalyze = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -90,7 +136,6 @@ export default function Home() {
               Start knowing.
             </motion.p>
 
-            {/* Search form — username pre-filled if logged in */}
             <motion.form
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -115,7 +160,6 @@ export default function Home() {
               </Button>
             </motion.form>
 
-            {/* CTA row: login or analyze my profile */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -123,7 +167,6 @@ export default function Home() {
               className="flex flex-col sm:flex-row items-center gap-4"
             >
               {user ? (
-                /* Logged in — quick shortcut */
                 <Button
                   onClick={handleAnalyzeMyProfile}
                   className="h-12 px-8 text-base font-bold border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black shadow-[4px_4px_0_0_#FF8D3F] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"
@@ -136,7 +179,6 @@ export default function Home() {
                   Analyze My Profile (@{user.username})
                 </Button>
               ) : oauthEnabled ? (
-                /* Not logged in — offer login */
                 <Button
                   onClick={login}
                   variant="outline"
@@ -157,22 +199,17 @@ export default function Home() {
             </motion.div>
           </motion.div>
 
-          {/* Scroll indicator */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1, duration: 0.5, repeat: Infinity, repeatType: "reverse" }}
-            className="absolute bottom-8 z-10 flex flex-col items-center gap-1"
-          >
-            <span className="text-xs font-bold uppercase tracking-widest text-black/40">Scroll</span>
-            <div className="w-px h-8 bg-black/20" />
-          </motion.div>
+          {/* Scroll indicator — CSS bounce instead of Framer Motion infinite loop */}
+          <div className="absolute bottom-8 z-10 flex flex-col items-center gap-1 animate-bounce opacity-40">
+            <span className="text-xs font-bold uppercase tracking-widest text-black">Scroll</span>
+            <div className="w-px h-8 bg-black" />
+          </div>
         </section>
 
         {/* FEATURES SECTION */}
-        <section ref={featuresRef} className="reveal w-full py-28 px-6 bg-background">
+        <section className="scroll-reveal w-full py-28 px-6 bg-background">
           <div className="max-w-7xl mx-auto">
-            <div className="reveal mb-20">
+            <div className="mb-20">
               <span className="text-xs font-black uppercase tracking-widest text-primary border-b-2 border-primary pb-1">The Arsenal</span>
               <h2 className="text-5xl md:text-7xl font-heading font-black uppercase mt-3 leading-none">
                 Three tools.<br />One verdict.
@@ -210,12 +247,12 @@ export default function Home() {
         </section>
 
         {/* STATS SECTION */}
-        <section className="reveal w-full py-20 px-6 border-t-4 border-b-4 border-black bg-black text-white">
+        <section className="scroll-reveal w-full py-20 px-6 border-t-4 border-b-4 border-black bg-black text-white">
           <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             {[
-              { num: "5",  label: "Scoring categories" },
-              { num: "100", label: "Point scale" },
-              { num: "AI", label: "Powered insights" },
+              { num: "5",   label: "Scoring categories" },
+              { num: "100", label: "Point scale"         },
+              { num: "AI",  label: "Powered insights"    },
             ].map(({ num, label }) => (
               <div key={label} className="flex flex-col items-center gap-2">
                 <span className="text-7xl font-heading font-black text-primary">{num}</span>
@@ -226,7 +263,7 @@ export default function Home() {
         </section>
 
         {/* CTA SECTION */}
-        <section className="reveal w-full py-28 px-6 bg-primary">
+        <section className="scroll-reveal w-full py-28 px-6 bg-primary">
           <div className="max-w-4xl mx-auto text-center border-4 border-black bg-white p-14 shadow-[14px_14px_0_0_#000] rotate-1">
             <h2 className="text-5xl md:text-6xl font-heading font-black uppercase mb-4 leading-none">Ready to judge?</h2>
             <p className="text-xl mb-10 font-semibold text-black/70">Drop a username. We'll do the rest.</p>
