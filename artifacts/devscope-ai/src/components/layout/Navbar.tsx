@@ -1,12 +1,12 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Github, LogOut, User } from "lucide-react";
+import { Search, Github, LogOut, User, History } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user, isLoading, oauthEnabled, login, logout } = useAuth();
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
@@ -19,17 +19,14 @@ export default function Navbar() {
   };
 
   const handleAnalyzeMyProfile = () => {
-    if (user?.username) {
-      setLocation(`/analyze/${user.username}`);
-    }
+    if (user?.username) setLocation(`/analyze/${user.username}`);
   };
 
-  const handleLogout = async () => {
-    await logout();
-  };
+  const isActive = (path: string) => location === path;
 
   return (
     <nav className="w-full border-b-4 border-black bg-background px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+      {/* Left: logo + nav links */}
       <div className="flex items-center gap-8">
         <Link href="/" className="flex items-center gap-2 group">
           <div className="w-8 h-8 bg-primary border-2 border-black flex items-center justify-center group-hover:-rotate-12 transition-transform duration-200">
@@ -38,15 +35,29 @@ export default function Navbar() {
           <span className="font-heading font-bold text-xl tracking-tight">DevScope AI</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-6">
-          <Link href="/dashboard" className="font-semibold text-sm uppercase tracking-wide hover:text-primary transition-colors">
-            Dashboard
-          </Link>
+        <div className="hidden md:flex items-center gap-1">
+          {[
+            { href: "/dashboard", label: "Dashboard" },
+            { href: "/dashboard/history", label: "History", icon: <History className="w-3.5 h-3.5" /> },
+          ].map(({ href, label, icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-sm uppercase tracking-wide transition-all border-2 ${
+                isActive(href)
+                  ? "border-black bg-primary text-black shadow-[2px_2px_0_#000]"
+                  : "border-transparent hover:border-black hover:bg-white hover:shadow-[2px_2px_0_#000]"
+              }`}
+            >
+              {icon}
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
 
+      {/* Right: search + auth */}
       <div className="flex items-center gap-3">
-        {/* Quick search bar */}
         <form onSubmit={handleSearch} className="hidden sm:flex relative w-56 group">
           <Input
             name="username"
@@ -63,13 +74,10 @@ export default function Navbar() {
           </Button>
         </form>
 
-        {/* Auth area */}
         {!isLoading && (
           <>
             {user ? (
-              /* ── Logged-in state ── */
               <div className="flex items-center gap-2">
-                {/* Analyze my profile */}
                 <Button
                   onClick={handleAnalyzeMyProfile}
                   className="hidden sm:flex h-9 px-4 text-sm font-bold border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all uppercase tracking-wide"
@@ -77,23 +85,17 @@ export default function Navbar() {
                   Analyze Mine
                 </Button>
 
-                {/* Avatar + username */}
                 <div className="flex items-center gap-2 border-2 border-black bg-white px-3 py-1.5 shadow-[3px_3px_0_0_#000]">
                   {user.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt={user.username}
-                      className="w-6 h-6 border border-black rounded-none"
-                    />
+                    <img src={user.avatarUrl} alt={user.username} className="w-6 h-6 border border-black" />
                   ) : (
                     <User className="w-4 h-4" />
                   )}
                   <span className="text-sm font-bold hidden md:inline">{user.username}</span>
                 </div>
 
-                {/* Logout */}
                 <Button
-                  onClick={handleLogout}
+                  onClick={() => void logout()}
                   size="icon"
                   variant="ghost"
                   title="Sign out"
@@ -103,7 +105,6 @@ export default function Navbar() {
                 </Button>
               </div>
             ) : oauthEnabled ? (
-              /* ── Logged-out state (OAuth available) ── */
               <Button
                 onClick={login}
                 className="h-9 px-4 text-sm font-bold border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"

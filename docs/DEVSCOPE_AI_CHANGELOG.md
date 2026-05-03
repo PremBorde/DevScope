@@ -12,6 +12,7 @@
 4. [Update 4 — Deterministic GitHub Scoring Engine v2.0](#update-4)
 5. [Update 5 — Redis Caching for GitHub API](#update-5)
 6. [Update 6 — GitHub OAuth Authentication (Optional)](#update-6)
+7. [Update 7 — User History Tracking + Growth Over Time Chart](#update-7)
 
 ---
 
@@ -619,6 +620,179 @@ artifacts/
         ├── home.tsx            ← Landing page (auto-fill if logged in)
         ├── analyze.tsx         ← Analysis results
         ├── dashboard.tsx       ← Platform dashboard
+        ├── history.tsx         ← History + growth chart (Update 7)
+        └── not-found.tsx       ← 404
+
+lib/
+├── db/src/schema/analyses.ts  ← PostgreSQL analyses table
+└── integrations-gemini-ai/    ← Gemini AI client
+```
+
+---
+
+<a name="update-7"></a>
+## Update 7 — User History Tracking + Growth Over Time Chart
+
+**Date:** May 3, 2026
+**Type:** Feature — SaaS Retention + Improvement Tracking
+
+---
+
+### Overview
+
+Transformed DevScope AI from a one-shot tool into a retention-focused SaaS. Users can now browse every past analysis by username, re-trigger scans with one click, and visualise their GitHub score trajectory on an animated line chart — turning each return visit into a meaningful progress check.
+
+---
+
+### Goals
+
+1. **Retention** — give users a reason to return by showing their evolving history
+2. **Improvement tracking** — quantify GitHub score growth over time with a visual chart
+3. **Discoverability** — surface any username's historical record instantly via search
+
+---
+
+### Backend (no new routes needed)
+
+All required endpoints already existed from previous work:
+
+| Route | Purpose |
+|---|---|
+| `GET /api/history` | Recent 20 platform-wide analyses (with `?limit=N`) |
+| `GET /api/history/:username` | All analyses for one username, newest first |
+| `GET /api/stats` | Platform-wide aggregate stats |
+
+Data stored in the `analyses` PostgreSQL table includes `id`, `username`, `score`, `hiringRecommendation`, `avatarUrl`, `topLanguages`, `analyzedAt` — all the fields needed by the history UI.
+
+---
+
+### Frontend — `/dashboard/history` Page (`pages/history.tsx`)
+
+New full-page route at `/dashboard/history`. Three logical sections:
+
+#### 1. Header + Username Search
+- Prominent `HISTORY` heading with a `History` icon (Lucide)
+- Username search bar (`<Input>` + `<Button>`) — press Enter or click Search
+- If logged in via GitHub OAuth, auto-fills and queries the session user's username
+- "All" button clears username filter and returns to global platform view
+
+#### 2. User Summary Stats (when username is selected)
+Four stat cards shown in neobrutalist style with slight rotations:
+- **Total Analyses** — count of all DB rows for this username
+- **Best Score** — highest score achieved
+- **Latest Score** — most recent analysis score
+- **Avg Score** — arithmetic mean across all analyses
+
+Cards use `SCORE_COLOR()` helper to colour scores green/orange/red based on thresholds.
+
+#### 3. "Your Growth Over Time" Line Chart
+Renders only when a username is selected **and** has 2+ historical analyses.
+
+**Recharts components used:**
+```
+LineChart → Line + XAxis + YAxis + CartesianGrid + Tooltip + ReferenceLine
+```
+
+**Key design choices:**
+- Data sorted ascending (oldest → newest) for left-to-right time flow (API returns desc, reversed on frontend)
+- **Reference lines** at y=70 (green, "Hire") and y=50 (orange, "Consider") so users know the thresholds
+- **Custom dot** (`CustomDot`) — coloured circle with black border whose fill matches `SCORE_COLOR(score)`
+- **Custom tooltip** (`CustomTooltip`) — shows date label + large score in matching colour + "/100"
+- **Overall Change** badge — shows `+N pts` or `-N pts` delta from first to last analysis
+- Recharts built-in `animationBegin={200}` + `animationDuration={1200}` + `animationEasing="ease-out"` for chart draw-on animation
+
+#### 4. History Table
+Columns: **User | Score | Verdict | Languages | When | Actions**
+
+- Score coloured via `SCORE_COLOR()` helper
+- Verdict shown as `<HiringBadge>` with colour-coded background
+- Top 3 languages shown as coloured inline chips
+- "When" formatted by `timeAgo()` (e.g. "3h ago", "Jan 15")
+- **Re-analyze button** — opens `/analyze/:username` triggering a fresh AI analysis; result auto-saved to DB
+- **View button** — `ArrowUpRight` icon navigating to the cached analysis result
+- Clicking a username row auto-fills the search bar and switches to that user's personal history
+- GSAP stagger entrance: rows start at `opacity: 0` and animate in with 0.04s stagger via `useStaggerEntrance`
+
+#### 5. Empty / CTA States
+- No data + no username → "Browse recent analyses" global view
+- No data for username → "Analyze this profile to start tracking" + direct Re-analyze button
+- No username selected → orange rotated CTA card at bottom: "Track your own progress"
+
+---
+
+### Navbar Updates (`components/layout/Navbar.tsx`)
+
+Added **History** nav link between Dashboard and the search bar:
+- Icon: `History` (Lucide) displayed inline with label
+- Active state: orange `bg-primary` background + `shadow-[2px_2px_0_#000]` border — matches Dashboard active style
+- Inactive state: transparent border, hover lifts with black shadow
+
+---
+
+### Router Update (`App.tsx`)
+
+Added route:
+```tsx
+<Route path="/dashboard/history" component={HistoryPage} />
+```
+Placed before the catch-all `<Route component={NotFound} />`.
+
+---
+
+### Data Flow
+
+```
+User types username → setActiveUsername(val)
+  → useGetUserAnalysisHistory(username) fires
+  → GET /api/history/:username → analyses[] sorted desc by analyzedAt
+  → Table renders rows (GSAP stagger entrance)
+  → chartData = [...analyses].sort(asc) → LineChart renders with animation
+  → Summary stat cards compute max/avg/latest from same data
+```
+
+Re-analyze button:
+```
+click → setLocation("/analyze/username")
+  → Analyze page triggers GET /api/analyze/:username
+  → Backend fetches GitHub + scores + Gemini AI
+  → Result saved to analyses table (existing save logic in analyze.ts route)
+  → User navigates back to /dashboard/history → fresh row appears
+```
+
+---
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `artifacts/devscope-ai/src/pages/history.tsx` | **Created** — full History page |
+| `artifacts/devscope-ai/src/App.tsx` | Added `/dashboard/history` route |
+| `artifacts/devscope-ai/src/components/layout/Navbar.tsx` | Added History nav link with active state |
+
+No backend changes — all required routes and DB schema were already in place.
+
+---
+
+### Full Project Structure (after Update 7)
+
+```
+artifacts/
+├── api-server/src/
+│   ├── routes/
+│   │   ├── analyze.ts      ← GitHub fetch + score + Gemini + DB save
+│   │   ├── history.ts      ← GET /history, /history/:username, /stats
+│   │   └── auth.ts         ← Optional GitHub OAuth
+│   └── services/
+│       └── scoring.service.ts  ← Deterministic v2.0 scoring engine
+└── devscope-ai/src/
+    ├── components/layout/
+    │   ├── Navbar.tsx      ← Auth-aware + History link
+    │   └── PageTransition.tsx
+    └── pages/
+        ├── home.tsx            ← Landing page (auto-fill if logged in)
+        ├── analyze.tsx         ← Analysis results
+        ├── dashboard.tsx       ← Platform dashboard
+        ├── history.tsx         ← History + growth chart (Update 7)
         └── not-found.tsx       ← 404
 
 lib/
