@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { connectRedis } from "./config/redis";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Connect Redis before accepting traffic (non-fatal — falls back to memory)
+await connectRedis();
 
 app.listen(port, (err) => {
   if (err) {

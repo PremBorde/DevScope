@@ -3,11 +3,9 @@ import { AnalyzeGithubUserParams } from "@workspace/api-zod";
 import { db, analysesTable } from "@workspace/db";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { calculateScore, type ScoredUser, type ScoredRepo } from "../services/scoring.service";
+import { getCached, setCached } from "../services/github-cache.service";
 
 const router = Router();
-
-const cache = new Map<string, { data: unknown; expiresAt: number }>();
-const CACHE_TTL_MS = 10 * 60 * 1000;
 
 interface GithubUser extends ScoredUser {
   message?: string;
@@ -147,13 +145,15 @@ router.get("/:username", async (req: Request, res: Response) => {
 
   const { username } = parseResult.data;
 
-  const cached = cache.get(username.toLowerCase());
-  if (cached && cached.expiresAt > Date.now()) {
-    res.json({ ...cached.data, cached: true });
+  // ── Cache lookup (Redis → memory fallback) ──────────────────────────────
+  const hit = await getCached(username);
+  if (hit) {
+    res.json({ ...(hit.data as object), cached: true, cacheSource: hit.source });
     return;
   }
 
   try {
+    // ── Cache MISS — fetch from GitHub API ──────────────────────────────
     const [user, repos] = await Promise.all([
       fetchGitHubUser(username),
       fetchGitHubRepos(username),
@@ -200,13 +200,16 @@ router.get("/:username", async (req: Request, res: Response) => {
       repoStats,
       languageDistribution,
       scoreBreakdown,
-      scoreDetails: scoreResult.breakdown, // rich breakdown with reasons
+      scoreDetails: scoreResult.breakdown,
       aiInsights,
       analyzedAt: saved.analyzedAt.toISOString(),
       cached: false,
+      cacheSource: null,
     };
 
-    cache.set(username.toLowerCase(), { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
+    // ── Store in Redis + memory (TTL 1800s) ─────────────────────────────
+    await setCached(username, result);
+
     res.json(result);
   } catch (err: unknown) {
     const apiErr = err as { status?: number; message?: string };

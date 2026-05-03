@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { calculateScore } from "../services/scoring.service";
+import { getCached, setCached, CACHE_TTL_SECONDS } from "../services/github-cache.service";
 
 const router = Router();
 
@@ -60,10 +61,21 @@ function computeLanguageDistribution(repos: GithubRepo[]): Record<string, number
   );
 }
 
+// Cache key namespace for debug route (separate from full-analysis cache)
+const DEBUG_NAMESPACE = "__debug__";
+
 router.get("/:username", async (req: Request, res: Response) => {
   const { username } = req.params;
   if (!username || typeof username !== "string") {
     res.status(400).json({ error: "bad_request", message: "Username is required" });
+    return;
+  }
+
+  // ── Cache lookup for debug scores ──────────────────────────────────────
+  const debugUsername = `${DEBUG_NAMESPACE}${username}`;
+  const hit = await getCached(debugUsername);
+  if (hit) {
+    res.json({ ...(hit.data as object), cached: true, cacheSource: hit.source });
     return;
   }
 
@@ -76,49 +88,27 @@ router.get("/:username", async (req: Request, res: Response) => {
     const languageDistribution = computeLanguageDistribution(allRepos);
     const result = calculateScore(user, allRepos, languageDistribution);
 
-    res.json({
+    const grade =
+      result.total >= 80 ? "A" :
+      result.total >= 70 ? "B" :
+      result.total >= 55 ? "C" :
+      result.total >= 40 ? "D" : "F";
+
+    const response = {
       username: user.login,
       name: user.name,
       score: result.total,
-      grade:
-        result.total >= 80 ? "A" :
-        result.total >= 70 ? "B" :
-        result.total >= 55 ? "C" :
-        result.total >= 40 ? "D" : "F",
+      grade,
       breakdown: {
-        repoQuality: {
-          score: result.breakdown.repoQuality.score,
-          max:   result.breakdown.repoQuality.max,
-          reason: result.breakdown.repoQuality.reason,
-          sub:   result.breakdown.repoQuality.sub,
-        },
-        activity: {
-          score: result.breakdown.activity.score,
-          max:   result.breakdown.activity.max,
-          reason: result.breakdown.activity.reason,
-          sub:   result.breakdown.activity.sub,
-        },
-        diversity: {
-          score: result.breakdown.diversity.score,
-          max:   result.breakdown.diversity.max,
-          reason: result.breakdown.diversity.reason,
-          sub:   result.breakdown.diversity.sub,
-        },
-        popularity: {
-          score: result.breakdown.popularity.score,
-          max:   result.breakdown.popularity.max,
-          reason: result.breakdown.popularity.reason,
-          sub:   result.breakdown.popularity.sub,
-        },
-        completeness: {
-          score: result.breakdown.completeness.score,
-          max:   result.breakdown.completeness.max,
-          reason: result.breakdown.completeness.reason,
-          sub:   result.breakdown.completeness.sub,
-        },
+        repoQuality:  { score: result.breakdown.repoQuality.score,  max: result.breakdown.repoQuality.max,  reason: result.breakdown.repoQuality.reason,  sub: result.breakdown.repoQuality.sub },
+        activity:     { score: result.breakdown.activity.score,     max: result.breakdown.activity.max,     reason: result.breakdown.activity.reason,     sub: result.breakdown.activity.sub },
+        diversity:    { score: result.breakdown.diversity.score,    max: result.breakdown.diversity.max,    reason: result.breakdown.diversity.reason,    sub: result.breakdown.diversity.sub },
+        popularity:   { score: result.breakdown.popularity.score,   max: result.breakdown.popularity.max,   reason: result.breakdown.popularity.reason,   sub: result.breakdown.popularity.sub },
+        completeness: { score: result.breakdown.completeness.score, max: result.breakdown.completeness.max, reason: result.breakdown.completeness.reason, sub: result.breakdown.completeness.sub },
       },
       meta: result.meta,
       scoringVersion: "2.0.0-deterministic",
+      cacheTtlSeconds: CACHE_TTL_SECONDS,
       explanation: {
         repoQuality:  "README/description coverage (12) + avg stars log-norm (10) + any-description ratio (8)",
         activity:     "Days-since-last-commit tier (12) + active-repo ratio last 12mo (8) + account maturity (5)",
@@ -126,7 +116,14 @@ router.get("/:username", async (req: Request, res: Response) => {
         popularity:   "Total stars log-norm vs 500 (8) + forks log-norm vs 200 (4) + followers log-norm vs 500 (3)",
         completeness: "Meaningful bio (3) + custom avatar (2) + location (1) + website (1) + repo desc ratio (2)",
       },
-    });
+      cached: false,
+      cacheSource: null,
+    };
+
+    // Cache the debug result too
+    await setCached(debugUsername, response);
+
+    res.json(response);
   } catch (err: unknown) {
     const apiErr = err as { status?: number; message?: string };
     if (apiErr.status === 404) {
