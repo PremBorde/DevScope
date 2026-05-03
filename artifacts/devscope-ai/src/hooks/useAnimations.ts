@@ -11,7 +11,7 @@ export function usePageEntrance(containerRef: RefObject<HTMLElement | null>) {
       gsap.fromTo(
         containerRef.current,
         { opacity: 0, y: 12 },
-        { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "transform,opacity" }
+        { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "all" }
       );
     }, containerRef);
     return () => ctx.revert();

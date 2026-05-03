@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import compression from "compression";
 import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
@@ -80,6 +81,9 @@ app.use(
     credentials: true,
   }),
 );
+
+// ── Compression (gzip/brotli for all JSON responses) ───────────────────────
+app.use(compression());
 
 // ── Body parsing ────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "64kb" }));

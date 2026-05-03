@@ -1,6 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import {
   useAnalyzeGithubUser,
@@ -305,10 +305,14 @@ export default function Analyze() {
 
   const { profile, repoStats, languageDistribution, scoreBreakdown, aiInsights, analyzedAt, cached } = data;
 
-  const langData = Object.entries(languageDistribution)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, pct]) => ({ name, value: pct }));
+  const langData = useMemo(
+    () =>
+      Object.entries(languageDistribution)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, pct]) => ({ name, value: pct })),
+    [languageDistribution],
+  );
 
   const scoreColor = ScoreColor(scoreBreakdown.total);
 

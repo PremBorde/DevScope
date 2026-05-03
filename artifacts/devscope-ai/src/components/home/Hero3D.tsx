@@ -1,35 +1,42 @@
-import { useRef, useMemo, useState, useEffect } from "react";
+import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Line, Sphere } from "@react-three/drei";
 import * as THREE from "three";
+
+const NODE_COUNT = 50;
+const MAX_EDGE_DIST = 2.8;
 
 function Network() {
   const group = useRef<THREE.Group>(null);
 
   const nodes = useMemo(() => {
     const temp = [];
-    for (let i = 0; i < 70; i++) {
+    const palette = ["#000000", "#FF8D3F", "#FFFFFF", "#000000", "#FF8D3F"];
+    for (let i = 0; i < NODE_COUNT; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(Math.random() * 2 - 1);
       const r = 3.5 + Math.random() * 2;
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.sin(phi) * Math.sin(theta);
-      const z = r * Math.cos(phi);
-      const palette = ["#000000", "#FF8D3F", "#FFFFFF", "#000000", "#FF8D3F"];
-      const color = palette[Math.floor(Math.random() * palette.length)];
-      const size = 0.06 + Math.random() * 0.16;
-      temp.push({ position: [x, y, z] as [number, number, number], color, size });
+      temp.push({
+        position: [
+          r * Math.sin(phi) * Math.cos(theta),
+          r * Math.sin(phi) * Math.sin(theta),
+          r * Math.cos(phi),
+        ] as [number, number, number],
+        color: palette[Math.floor(Math.random() * palette.length)],
+        size: 0.06 + Math.random() * 0.16,
+      });
     }
     return temp;
   }, []);
 
+  // Pre-compute edges once; useMemo so N² loop only runs at mount
   const lines = useMemo(() => {
-    const temp = [];
+    const temp: [[number, number, number], [number, number, number]][] = [];
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const p1 = new THREE.Vector3(...nodes[i].position);
         const p2 = new THREE.Vector3(...nodes[j].position);
-        if (p1.distanceTo(p2) < 2.8) {
+        if (p1.distanceTo(p2) < MAX_EDGE_DIST) {
           temp.push([nodes[i].position, nodes[j].position]);
         }
       }
@@ -38,10 +45,9 @@ function Network() {
   }, [nodes]);
 
   useFrame((state) => {
-    if (group.current) {
-      group.current.rotation.y += 0.0015;
-      group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.15) * 0.12;
-    }
+    if (!group.current) return;
+    group.current.rotation.y += 0.0015;
+    group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.15) * 0.12;
   });
 
   return (
@@ -50,7 +56,8 @@ function Network() {
         <Line key={i} points={line} color="#000000" lineWidth={1} transparent opacity={0.18} />
       ))}
       {nodes.map((node, i) => (
-        <Sphere key={i} position={node.position} args={[node.size, 16, 16]}>
+        // 8 segments instead of 16 — half the vertex count, imperceptible visually
+        <Sphere key={i} position={node.position} args={[node.size, 8, 8]}>
           <meshBasicMaterial color={node.color} />
         </Sphere>
       ))}
@@ -105,7 +112,6 @@ function CssFallback() {
         preserveAspectRatio="xMidYMid slice"
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Static connection lines */}
         {lines.map((l) => (
           <line
             key={l.key}
@@ -117,8 +123,6 @@ function CssFallback() {
             strokeWidth="0.25"
           />
         ))}
-
-        {/* Animated nodes */}
         {nodes.map((n, i) => {
           const x2 = n.cx + n.dx;
           const y2 = n.cy + n.dy;
@@ -164,6 +168,7 @@ function checkWebGL(): boolean {
   try {
     const canvas = document.createElement("canvas");
     const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    canvas.remove();
     return !!gl;
   } catch {
     return false;
@@ -171,21 +176,20 @@ function checkWebGL(): boolean {
 }
 
 export default function Hero3D() {
-  const [webGlFailed, setWebGlFailed] = useState(() => !checkWebGL());
+  // Check WebGL availability once synchronously — avoids a flash of 3D then fallback
+  const webGlAvailable = checkWebGL();
 
-  useEffect(() => {
-    if (!checkWebGL()) setWebGlFailed(true);
-  }, []);
-
-  if (webGlFailed) {
+  if (!webGlAvailable) {
     return <CssFallback />;
   }
 
   return (
     <Canvas
+      // Cap DPR at 1.5 — no perceptible quality loss but halves GPU load on Retina
+      dpr={[1, 1.5]}
       camera={{ position: [0, 0, 10], fov: 45 }}
-      onCreated={({ gl }) => {
-        if (!gl) setWebGlFailed(true);
+      onError={() => {
+        /* WebGL context lost — handled by Canvas fallback prop */
       }}
       fallback={<CssFallback />}
     >

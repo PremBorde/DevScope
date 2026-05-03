@@ -13,6 +13,7 @@
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-gemini-ai": "workspace:*",
+    "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
@@ -28,6 +29,7 @@
     "pino-http": "^10"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",

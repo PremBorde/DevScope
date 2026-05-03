@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   useGetAnalysisHistory,
@@ -135,20 +135,27 @@ export default function Dashboard() {
     query: { queryKey: getGetPlatformStatsQueryKey() },
   });
 
-  const hiringData = stats
-    ? Object.entries(stats.hiringBreakdown).map(([key, count]) => ({
-        name: key.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        value: count,
-        color: HIRE_COLORS[key],
-      }))
-    : [];
+  const hiringData = useMemo(
+    () =>
+      stats
+        ? Object.entries(stats.hiringBreakdown).map(([key, count]) => ({
+            name: key.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            value: count,
+            color: HIRE_COLORS[key],
+          }))
+        : [],
+    [stats],
+  );
 
-  const langBarData =
-    stats?.topLanguages?.slice(0, 8).map((lang, i) => ({
-      name: lang,
-      value: history?.filter((h) => h.topLanguages.includes(lang)).length ?? 0,
-      fill: LANG_COLORS[i % LANG_COLORS.length],
-    })) ?? [];
+  const langBarData = useMemo(
+    () =>
+      stats?.topLanguages?.slice(0, 8).map((lang, i) => ({
+        name: lang,
+        value: history?.filter((h) => h.topLanguages.includes(lang)).length ?? 0,
+        fill: LANG_COLORS[i % LANG_COLORS.length],
+      })) ?? [],
+    [stats, history],
+  );
 
   // --- Score Trend state ---
   const [inputValue, setInputValue]       = useState("");

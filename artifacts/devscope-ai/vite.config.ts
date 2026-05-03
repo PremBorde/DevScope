@@ -57,6 +57,24 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Explicit vendor chunk splitting so heavy libraries load independently.
+        // Three.js (~600 KB) is only needed on the home page; Recharts (~150 KB)
+        // only on analyze/dashboard/history. Framer Motion and GSAP are separated
+        // so pages that don't need them don't stall on a monolithic vendor bundle.
+        manualChunks(id: string) {
+          if (!id.includes("/node_modules/")) return undefined;
+          if (id.includes("/three/") || id.includes("/@react-three/")) return "vendor-3d";
+          if (id.includes("/recharts/") || id.includes("/d3-") || id.includes("/victory-")) return "vendor-charts";
+          if (id.includes("/framer-motion/")) return "vendor-motion";
+          if (id.includes("/gsap/") || id.includes("/@gsap/")) return "vendor-gsap";
+          if (id.includes("/@radix-ui/")) return "vendor-radix";
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) return "vendor-react";
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     port,

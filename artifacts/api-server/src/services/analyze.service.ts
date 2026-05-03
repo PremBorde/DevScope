@@ -1,6 +1,10 @@
 /**
  * Shared GitHub analysis service.
  * Used by both the /analyze and /compare routes.
+ *
+ * Perf features:
+ *  - In-flight deduplication: concurrent requests for the same username share one promise
+ *  - Layered cache: Redis → in-memory Map → GitHub API + Gemini AI
  */
 
 import { db, analysesTable } from "@workspace/db";
@@ -54,6 +58,13 @@ export interface AnalysisData {
   cached: boolean;
   cacheSource: string | null;
 }
+
+// ── In-flight deduplication ──────────────────────────────────────────────────
+// Prevents duplicate GitHub API + Gemini calls when multiple users request the
+// same username simultaneously before the first result is cached.
+const inFlight = new Map<string, Promise<AnalysisData>>();
+
+// ── GitHub fetch helpers ─────────────────────────────────────────────────────
 
 export async function fetchGitHubUser(username: string): Promise<GithubUser> {
   let res: Response;
@@ -198,12 +209,9 @@ Return ONLY a JSON object:
   }
 }
 
-export async function analyzeUser(username: string): Promise<AnalysisData> {
-  const hit = await getCached(username);
-  if (hit) {
-    return { ...(hit.data as AnalysisData), cached: true, cacheSource: hit.source };
-  }
+// ── Core analysis function ───────────────────────────────────────────────────
 
+async function _runAnalysis(username: string): Promise<AnalysisData> {
   const [user, repos] = await Promise.all([
     fetchGitHubUser(username),
     fetchGitHubRepos(username),
@@ -264,4 +272,29 @@ export async function analyzeUser(username: string): Promise<AnalysisData> {
   await setCached(username, result);
 
   return result;
+}
+
+export async function analyzeUser(username: string): Promise<AnalysisData> {
+  // 1 — Cache hit (Redis → memory)
+  const hit = await getCached(username);
+  if (hit) {
+    return { ...(hit.data as AnalysisData), cached: true, cacheSource: hit.source };
+  }
+
+  // 2 — In-flight deduplication: if another request is already running for this
+  //     username, join it instead of spawning a duplicate GitHub + AI call.
+  const existing = inFlight.get(username);
+  if (existing) {
+    logger.info({ username }, "[IN-FLIGHT] Joining existing request — deduplicating concurrent call");
+    const result = await existing;
+    return { ...result, cached: true, cacheSource: "in-flight" };
+  }
+
+  // 3 — New request: register it so concurrent callers can join
+  const promise = _runAnalysis(username).finally(() => {
+    inFlight.delete(username);
+  });
+
+  inFlight.set(username, promise);
+  return promise;
 }
