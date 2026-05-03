@@ -10,8 +10,8 @@ export function usePageEntrance(containerRef: RefObject<HTMLElement | null>) {
     const ctx = gsap.context(() => {
       gsap.fromTo(
         containerRef.current,
-        { opacity: 0, y: 28, scale: 0.98 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out", clearProps: "transform,opacity" }
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "transform,opacity" }
       );
     }, containerRef);
     return () => ctx.revert();
@@ -32,15 +32,15 @@ export function useScrollReveal(
       elements.forEach((el) => {
         gsap.fromTo(
           el,
-          { y: options?.y ?? 48, opacity: 0 },
+          { y: options?.y ?? 20, opacity: 0 },
           {
             y: 0,
             opacity: 1,
-            duration: 0.7,
-            ease: "power3.out",
+            duration: 0.35,
+            ease: "power2.out",
             scrollTrigger: {
               trigger: el,
-              start: "top 85%",
+              start: "top 92%",
               once: true,
             },
           }
@@ -65,16 +65,15 @@ export function useStaggerEntrance(
     const ctx = gsap.context(() => {
       gsap.fromTo(
         cards,
-        { y: options?.y ?? 36, opacity: 0, scale: 0.95 },
+        { y: options?.y ?? 16, opacity: 0 },
         {
           y: 0,
           opacity: 1,
-          scale: 1,
-          duration: 0.5,
-          stagger: options?.stagger ?? 0.09,
+          duration: 0.28,
+          stagger: options?.stagger ?? 0.05,
           delay: options?.delay ?? 0,
-          ease: "power3.out",
-          clearProps: "scale,opacity",
+          ease: "power2.out",
+          clearProps: "opacity",
         }
       );
     }, containerRef);
@@ -95,7 +94,7 @@ export function useCountUp(
     const suffix = options?.suffix ?? "";
     const tween = gsap.to(obj, {
       val: target,
-      duration: options?.duration ?? 1.8,
+      duration: options?.duration ?? 1.2,
       delay: options?.delay ?? 0,
       ease: "power2.out",
       onUpdate() {
@@ -123,9 +122,9 @@ export function useProgressBars(
           { width: "0%" },
           {
             width: target,
-            duration: 1.1,
-            delay: 0.3 + i * 0.12,
-            ease: "power3.out",
+            duration: 0.7,
+            delay: 0.1 + i * 0.07,
+            ease: "power2.out",
           }
         );
       });
@@ -137,9 +136,8 @@ export function useProgressBars(
 export function useCardHover() {
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     gsap.to(e.currentTarget, {
-      y: -6,
-      scale: 1.025,
-      duration: 0.2,
+      y: -3,
+      duration: 0.15,
       ease: "power2.out",
       overwrite: "auto",
     });
@@ -147,9 +145,8 @@ export function useCardHover() {
   const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
     gsap.to(e.currentTarget, {
       y: 0,
-      scale: 1,
-      duration: 0.35,
-      ease: "power3.out",
+      duration: 0.2,
+      ease: "power2.out",
       overwrite: "auto",
     });
   };
@@ -158,15 +155,15 @@ export function useCardHover() {
 
 export function useBadgeEntrance(
   ref: RefObject<HTMLElement | null>,
-  delay = 0.6
+  delay = 0.3
 ) {
   useEffect(() => {
     if (!ref.current) return;
     const ctx = gsap.context(() => {
       gsap.fromTo(
         ref.current,
-        { scale: 0.7, opacity: 0, y: 10 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.45, delay, ease: "back.out(1.7)" }
+        { scale: 0.85, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.3, delay, ease: "back.out(1.4)" }
       );
     }, ref);
     return () => ctx.revert();
