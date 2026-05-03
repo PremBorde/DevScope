@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DevScope AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: analyze
+    description: GitHub profile analysis
+  - name: history
+    description: Analysis history
 paths:
   /healthz:
     get:
@@ -24,6 +28,105 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /analyze/{username}:
+    get:
+      operationId: analyzeGithubUser
+      tags: [analyze]
+      summary: Analyze GitHub user profile
+      description: Fetches GitHub data, scores the profile, and returns AI insights
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "404":
+          description: GitHub user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /history:
+    get:
+      operationId: getAnalysisHistory
+      tags: [history]
+      summary: Get recent analysis history
+      description: Returns the most recently analyzed profiles
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        "200":
+          description: List of recent analyses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalysisSummary"
+
+  /history/{username}:
+    get:
+      operationId: getUserAnalysisHistory
+      tags: [history]
+      summary: Get analysis history for a specific user
+      description: Returns all past analyses for a given GitHub username
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analysis history for user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalysisSummary"
+
+  /stats:
+    get:
+      operationId: getPlatformStats
+      tags: [history]
+      summary: Get platform-wide statistics
+      description: Returns aggregate stats about all analyses performed
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +137,236 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    GithubProfile:
+      type: object
+      properties:
+        login:
+          type: string
+        name:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+        bio:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        public_repos:
+          type: integer
+        followers:
+          type: integer
+        following:
+          type: integer
+        created_at:
+          type: string
+        html_url:
+          type: string
+      required:
+        - login
+        - avatar_url
+        - public_repos
+        - followers
+        - following
+        - created_at
+        - html_url
+
+    LanguageDistribution:
+      type: object
+      additionalProperties:
+        type: number
+      description: Language name to percentage mapping
+
+    ScoreBreakdown:
+      type: object
+      properties:
+        repoQuality:
+          type: number
+          description: Score for repository quality (0-30)
+        activityConsistency:
+          type: number
+          description: Score for activity consistency (0-25)
+        techDiversity:
+          type: number
+          description: Score for technology diversity (0-20)
+        popularity:
+          type: number
+          description: Score for popularity via stars/forks (0-15)
+        completeness:
+          type: number
+          description: Score for profile completeness (0-10)
+        total:
+          type: number
+          description: Total score (0-100)
+      required:
+        - repoQuality
+        - activityConsistency
+        - techDiversity
+        - popularity
+        - completeness
+        - total
+
+    AiInsights:
+      type: object
+      properties:
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        hiringRecommendation:
+          type: string
+          enum: [strong_hire, hire, consider, pass]
+        summary:
+          type: string
+      required:
+        - strengths
+        - weaknesses
+        - suggestions
+        - hiringRecommendation
+        - summary
+
+    RepoStats:
+      type: object
+      properties:
+        totalRepos:
+          type: integer
+        totalStars:
+          type: integer
+        totalForks:
+          type: integer
+        avgStarsPerRepo:
+          type: number
+        reposWithReadme:
+          type: integer
+        reposWithDescription:
+          type: integer
+        mostStarredRepo:
+          type: string
+          nullable: true
+        topLanguages:
+          type: array
+          items:
+            type: string
+      required:
+        - totalRepos
+        - totalStars
+        - totalForks
+        - avgStarsPerRepo
+        - reposWithReadme
+        - reposWithDescription
+        - topLanguages
+
+    AnalysisResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        profile:
+          $ref: "#/components/schemas/GithubProfile"
+        repoStats:
+          $ref: "#/components/schemas/RepoStats"
+        languageDistribution:
+          $ref: "#/components/schemas/LanguageDistribution"
+        scoreBreakdown:
+          $ref: "#/components/schemas/ScoreBreakdown"
+        aiInsights:
+          $ref: "#/components/schemas/AiInsights"
+        analyzedAt:
+          type: string
+        cached:
+          type: boolean
+      required:
+        - username
+        - profile
+        - repoStats
+        - languageDistribution
+        - scoreBreakdown
+        - aiInsights
+        - analyzedAt
+        - cached
+
+    AnalysisSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        score:
+          type: number
+        hiringRecommendation:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        analyzedAt:
+          type: string
+        topLanguages:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - username
+        - score
+        - hiringRecommendation
+        - analyzedAt
+        - topLanguages
+
+    PlatformStats:
+      type: object
+      properties:
+        totalAnalyses:
+          type: integer
+        uniqueUsers:
+          type: integer
+        avgScore:
+          type: number
+        topLanguages:
+          type: array
+          items:
+            type: string
+        hiringBreakdown:
+          type: object
+          properties:
+            strong_hire:
+              type: integer
+            hire:
+              type: integer
+            consider:
+              type: integer
+            pass:
+              type: integer
+          required:
+            - strong_hire
+            - hire
+            - consider
+            - pass
+      required:
+        - totalAnalyses
+        - uniqueUsers
+        - avgScore
+        - topLanguages
+        - hiringBreakdown

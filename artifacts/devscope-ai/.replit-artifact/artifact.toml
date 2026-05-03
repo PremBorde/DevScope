@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DevScope AI"
+version = "1.0.0"
+id = "artifacts/devscope-ai"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18339
+
+[services.development]
+run = "pnpm --filter @workspace/devscope-ai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/devscope-ai", "run", "build" ]
+publicDir = "artifacts/devscope-ai/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18339"
+BASE_PATH = "/"
