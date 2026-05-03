@@ -1,10 +1,11 @@
 import { Suspense, lazy } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "@/components/layout/Navbar";
 import WalkingLoader from "@/components/WalkingLoader";
+import HomeGreeter from "@/components/HomeGreeter";
 
 const Home      = lazy(() => import("@/pages/home"));
 const Analyze   = lazy(() => import("@/pages/analyze"));
@@ -28,10 +29,30 @@ const queryClient = new QueryClient({
 });
 
 
+const ROUTE_MESSAGES: { match: RegExp; msg: string }[] = [
+  { match: /^\/$/, msg: "Hello! Welcome 👋" },
+  { match: /^\/analyze\//, msg: "Let's score! 🎯" },
+  { match: /^\/dashboard\/history/, msg: "History time! 🕐" },
+  { match: /^\/dashboard/, msg: "Your stats! 📊" },
+  { match: /^\/compare/, msg: "Side by side! ⚖️" },
+  { match: /^\/report\//, msg: "Report ready! 📋" },
+];
+
+function getRouteMessage(path: string) {
+  for (const { match, msg } of ROUTE_MESSAGES) {
+    if (match.test(path)) return msg;
+  }
+  return "Hey there! 👋";
+}
+
 function Router() {
+  const [location] = useLocation();
+  const msg = getRouteMessage(location);
+
   return (
     <div className="min-h-screen flex flex-col w-full bg-background selection:bg-primary selection:text-primary-foreground">
       <Navbar />
+      <HomeGreeter key={location} message={msg} />
       <main className="flex-1 flex flex-col w-full">
         <Suspense fallback={<WalkingLoader />}>
           <Switch>

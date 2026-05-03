@@ -8,7 +8,6 @@ import { useCardHover } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import HomeGreeter from "@/components/HomeGreeter";
 
 const Hero3D = React.lazy(() => import("@/components/home/Hero3D"));
 
@@ -90,7 +89,6 @@ export default function Home() {
 
   return (
     <PageTransition>
-      <HomeGreeter />
       <div ref={pageRef} className="w-full flex flex-col min-h-screen overflow-hidden">
         {/* HERO SECTION */}
         <section className="relative w-full h-[100vh] min-h-[680px] flex flex-col items-center justify-center border-b-4 border-black overflow-hidden bg-background">
