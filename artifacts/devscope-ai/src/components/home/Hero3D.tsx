@@ -115,17 +115,21 @@ function CssFallback() {
   );
 }
 
+function checkWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    return !!gl;
+  } catch {
+    return false;
+  }
+}
+
 export default function Hero3D() {
-  const [webGlFailed, setWebGlFailed] = useState(false);
+  const [webGlFailed, setWebGlFailed] = useState(() => !checkWebGL());
 
   useEffect(() => {
-    try {
-      const canvas = document.createElement("canvas");
-      const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-      if (!gl) setWebGlFailed(true);
-    } catch {
-      setWebGlFailed(true);
-    }
+    if (!checkWebGL()) setWebGlFailed(true);
   }, []);
 
   if (webGlFailed) {
