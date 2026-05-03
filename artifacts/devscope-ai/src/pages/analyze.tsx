@@ -165,6 +165,7 @@ export default function Analyze() {
     try {
       await navigator.clipboard.writeText(reportUrl);
       toast({ title: "Report link copied!", description: `Share /report/${username} with anyone — no login required.` });
+      greeterBus.emit({ type: "celebrate", msg: "Link copied! 📎" });
     } catch {
       toast({ title: "Copy failed", description: "Please copy the URL manually.", variant: "destructive" });
     }
@@ -178,6 +179,15 @@ export default function Analyze() {
       greeterBus.emit({ type: "score", score: data.scoreBreakdown.total });
     }
   }, [data]);
+
+  // Error empathy — character reacts when API call fails
+  const errorSentRef = useRef(false);
+  useEffect(() => {
+    if (error && !errorSentRef.current) {
+      errorSentRef.current = true;
+      greeterBus.emit({ type: "error", msg: "Hmm, couldn't find them! 🤔" });
+    }
+  }, [error]);
 
   // Auto-generate weekly plan once analysis data is ready
   useEffect(() => {

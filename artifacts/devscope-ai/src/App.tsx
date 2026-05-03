@@ -1,11 +1,11 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "@/components/layout/Navbar";
 import WalkingLoader from "@/components/WalkingLoader";
-import HomeGreeter from "@/components/HomeGreeter";
+import HomeGreeter, { type HatType } from "@/components/HomeGreeter";
 import { greeterBus } from "@/lib/greeterBus";
 
 const Home      = lazy(() => import("@/pages/home"));
@@ -29,13 +29,22 @@ const queryClient = new QueryClient({
   },
 });
 
+/* ── Route messages ──────────────────────────────────────── */
+function getTimeOfDayGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 6)  return "Late night coding? 🦉";
+  if (h < 12) return "Good morning! ☀️";
+  if (h < 17) return "Good afternoon! 🌤️";
+  if (h < 21) return "Good evening! 🌆";
+  return "Burning midnight oil? 🔥";
+}
+
 const ROUTE_MESSAGES: { match: RegExp; msg: string }[] = [
-  { match: /^\/$/, msg: "Hello! Welcome 👋" },
-  { match: /^\/analyze\//, msg: "Let's score! 🎯" },
+  { match: /^\/analyze\//,        msg: "Let's score! 🎯"    },
   { match: /^\/dashboard\/history/, msg: "History time! 🕐" },
-  { match: /^\/dashboard/, msg: "Your stats! 📊" },
-  { match: /^\/compare/, msg: "Side by side! ⚖️" },
-  { match: /^\/report\//, msg: "Report ready! 📋" },
+  { match: /^\/dashboard/,        msg: "Your stats! 📊"    },
+  { match: /^\/compare/,          msg: "Side by side! ⚖️"  },
+  { match: /^\/report\//,         msg: "Report ready! 📋"  },
 ];
 
 const PAGE_TIPS: { match: RegExp; msg: string }[] = [
@@ -45,91 +54,198 @@ const PAGE_TIPS: { match: RegExp; msg: string }[] = [
   { match: /^\/compare/, msg: "Enter two usernames! ⚖️" },
 ];
 
-function getRouteMessage(path: string) {
+function getRouteMessage(path: string): string {
+  if (path === "/") return getTimeOfDayGreeting();
   for (const { match, msg } of ROUTE_MESSAGES) {
     if (match.test(path)) return msg;
   }
   return "Hey there! 👋";
 }
 
-function getPageTip(path: string) {
+function getPageTip(path: string): string {
   for (const { match, msg } of PAGE_TIPS) {
     if (match.test(path)) return msg;
   }
   return "Explore DevScope! 🚀";
 }
 
-interface NavGreeter { msg: string; speed: "walk" | "run"; ts: number; }
-interface ScoreGreeter { score: number; ts: number; }
+/* ── Mood memory ─────────────────────────────────────────── */
+function getMoodMessage(recentScores: number[]): string | null {
+  if (recentScores.length < 3) return null;
+  if (recentScores.every((s) => s >= 70)) return "On a roll! 🔥";
+  if (recentScores.every((s) => s < 50))  return "Tough crowd… 😮‍💨";
+  return null;
+}
 
+/* ── State shapes ────────────────────────────────────────── */
+interface NavGreeter   { msg: string; speed: "walk" | "run"; hat: HatType; ts: number; }
+interface ScoreGreeter { score: number; msg: string; hat: HatType; confetti: boolean; ts: number; }
+interface EventGreeter { msg: string; quick: boolean; side: "left" | "right"; hat?: HatType; ts: number; }
+
+/* ── Router ──────────────────────────────────────────────── */
 function Router() {
   const [location] = useLocation();
 
   const [navGreeter,   setNavGreeter]   = useState<NavGreeter | null>(null);
   const [scoreGreeter, setScoreGreeter] = useState<ScoreGreeter | null>(null);
+  const [eventGreeter, setEventGreeter] = useState<EventGreeter | null>(null);
 
-  /* ── Navigate: compute speed + easter-egg + run mode ──────────────── */
+  /* ── Navigation: speed, easter-egg, time-of-day, hat ─── */
   useEffect(() => {
     const prevTime = parseInt(sessionStorage.getItem("ds_lastnav") || "0");
     const now      = Date.now();
-    const elapsed  = now - prevTime;
     sessionStorage.setItem("ds_lastnav", String(now));
 
     const visits = parseInt(sessionStorage.getItem("ds_visits") || "0") + 1;
     sessionStorage.setItem("ds_visits", String(visits));
 
-    const speed: "walk" | "run" = prevTime > 0 && elapsed < 2000 ? "run" : "walk";
+    const speed: "walk" | "run" = prevTime > 0 && (now - prevTime) < 2000 ? "run" : "walk";
     const isEgg = visits >= 5 && visits % 5 === 0;
-    const msg   = isEgg ? "You're really exploring! 🗺️" : getRouteMessage(location);
 
-    setNavGreeter({ msg, speed, ts: now });
+    const baseMsg = getRouteMessage(location);
+    const msg     = isEgg ? "You're really exploring! 🗺️" : baseMsg;
+
+    const hat: HatType =
+      isEgg                           ? "party" :
+      location.startsWith("/analyze/") ? "hard"  :
+      null;
+
+    setNavGreeter({ msg, speed, hat, ts: now });
   }, [location]);
 
-  /* ── Subscribe to greeterBus (score events from analyze page) ──────── */
+  /* ── AFK detector — 3-minute idle ───────────────────── */
   useEffect(() => {
-    return greeterBus.on((e) => {
-      if (e.type === "score") {
-        setScoreGreeter({ score: e.score, ts: Date.now() });
+    let lastActivity = Date.now();
+    let afkShown     = false;
+
+    const onActivity = () => { lastActivity = Date.now(); afkShown = false; };
+    window.addEventListener("mousemove", onActivity, { passive: true });
+    window.addEventListener("keydown",   onActivity, { passive: true });
+    window.addEventListener("click",     onActivity, { passive: true });
+
+    const interval = setInterval(() => {
+      if (!afkShown && Date.now() - lastActivity > 3 * 60 * 1000) {
+        afkShown = true;
+        setNavGreeter({ msg: "Still there? 👀", speed: "walk", hat: "sleep", ts: Date.now() });
       }
-      if (e.type === "tip") {
-        setNavGreeter({ msg: e.msg, speed: "walk", ts: Date.now() });
-      }
-    });
+    }, 30_000);
+
+    return () => {
+      window.removeEventListener("mousemove", onActivity);
+      window.removeEventListener("keydown",   onActivity);
+      window.removeEventListener("click",     onActivity);
+      clearInterval(interval);
+    };
   }, []);
 
-  /* ── Keyboard shortcut: ? shows a context tip ──────────────────────── */
+  /* ── Keyboard shortcut: ? shows context tip ─────────── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key !== "?") return;
-      setNavGreeter({ msg: getPageTip(location), speed: "walk", ts: Date.now() });
+      setNavGreeter({ msg: getPageTip(location), speed: "walk", hat: null, ts: Date.now() });
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [location]);
 
+  /* ── greeterBus subscriptions ────────────────────────── */
+  useEffect(() => {
+    return greeterBus.on((e) => {
+      if (e.type === "tip") {
+        setNavGreeter({ msg: e.msg, speed: "walk", hat: null, ts: Date.now() });
+        return;
+      }
+
+      if (e.type === "watching") {
+        setEventGreeter({ msg: "I'm watching! 👀", quick: true, side: "right", ts: Date.now() });
+        return;
+      }
+
+      if (e.type === "error") {
+        setNavGreeter({
+          msg: e.msg ?? "Hmm, that didn't work! 🤔",
+          speed: "walk",
+          hat: null,
+          ts: Date.now(),
+        });
+        return;
+      }
+
+      if (e.type === "celebrate") {
+        setEventGreeter({ msg: e.msg, quick: true, side: "right", ts: Date.now() });
+        return;
+      }
+
+      if (e.type === "score") {
+        /* Mood memory */
+        const prev: number[] = JSON.parse(sessionStorage.getItem("ds_scores") || "[]");
+        const recent = [...prev, e.score].slice(-3);
+        sessionStorage.setItem("ds_scores", JSON.stringify(recent));
+
+        const moodMsg = getMoodMessage(recent);
+        const baseScoreMsg =
+          e.score >= 80 ? "Rockstar dev! 🌟" :
+          e.score >= 60 ? "Solid skills! 💪" :
+          e.score >= 40 ? "Room to grow! 📈" :
+          "We'll get there! 😅";
+        const msg = moodMsg ?? baseScoreMsg;
+
+        const hat: HatType =
+          e.score >= 90 ? "party" :
+          e.score >= 80 ? "grad"  :
+          e.score < 40  ? "sleep" :
+          null;
+
+        setScoreGreeter({
+          score:    e.score,
+          msg,
+          hat,
+          confetti: e.score >= 90,
+          ts:       Date.now(),
+        });
+      }
+    });
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col w-full bg-background selection:bg-primary selection:text-primary-foreground">
       <Navbar />
 
-      {/* Nav greeter — walks in from the LEFT on every page change */}
+      {/* Nav greeter — LEFT side, every page nav */}
       {navGreeter && (
         <HomeGreeter
           key={navGreeter.ts}
           message={navGreeter.msg}
           speed={navGreeter.speed}
+          hat={navGreeter.hat}
           side="left"
         />
       )}
 
-      {/* Score greeter — walks in from the RIGHT after analysis loads */}
+      {/* Score greeter — RIGHT side, after analysis loads */}
       {scoreGreeter && (
         <HomeGreeter
           key={`score-${scoreGreeter.ts}`}
+          message={scoreGreeter.msg}
           scoreReaction={scoreGreeter.score}
+          hat={scoreGreeter.hat}
+          confetti={scoreGreeter.confetti}
           side="right"
           onDone={() => setScoreGreeter(null)}
+        />
+      )}
+
+      {/* Event greeter — celebrate / watching / error */}
+      {eventGreeter && (
+        <HomeGreeter
+          key={`evt-${eventGreeter.ts}`}
+          message={eventGreeter.msg}
+          hat={eventGreeter.hat ?? null}
+          quick={eventGreeter.quick}
+          side={eventGreeter.side}
+          onDone={() => setEventGreeter(null)}
         />
       )}
 

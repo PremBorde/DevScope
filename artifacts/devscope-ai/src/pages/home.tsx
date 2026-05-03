@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowRight, Zap, Target, Brain, ChevronRight, Github } from "lucide-react";
+import { greeterBus } from "@/lib/greeterBus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -70,6 +71,14 @@ export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
 
   const [username, setUsername] = useState("");
+  const watchingSentRef = useRef(false);
+
+  const handleInputFocus = () => {
+    if (!watchingSentRef.current) {
+      watchingSentRef.current = true;
+      greeterBus.emit({ type: "watching" });
+    }
+  };
   useEffect(() => {
     if (user?.username) setUsername(user.username);
   }, [user?.username]);
@@ -147,6 +156,7 @@ export default function Home() {
                 name="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onFocus={handleInputFocus}
                 placeholder="Enter GitHub Username…"
                 className="h-16 text-lg px-6 border-4 border-black rounded-none shadow-[6px_6px_0_0_#000] focus-visible:ring-0 focus-visible:shadow-[8px_8px_0_0_#000] transition-all bg-white flex-1 font-medium"
                 required

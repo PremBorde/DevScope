@@ -1,6 +1,9 @@
 export type GreeterEvent =
-  | { type: "score"; score: number }
-  | { type: "tip";   msg: string  };
+  | { type: "score";     score: number }
+  | { type: "tip";       msg: string   }
+  | { type: "error";     msg?: string  }
+  | { type: "celebrate"; msg: string   }
+  | { type: "watching"                 };
 
 type Listener = (e: GreeterEvent) => void;
 const listeners = new Set<Listener>();
