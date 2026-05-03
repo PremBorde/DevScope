@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "e2Ub26RuGJGTD35jZLDbY"
+uri = "file://docs/DEVSCOPE_AI_CHANGELOG.md"
+type = "text"
+title = "DevScope AI — Complete Update Documentation"
