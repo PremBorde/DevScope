@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, ArrowRight, Zap, Target, Brain, ChevronRight, Github } from "lucide-react";
-import { greeterBus } from "@/lib/greeterBus";
+import { greeterBus, consumeInputBlurSuppressed } from "@/lib/greeterBus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -90,6 +90,7 @@ export default function Home() {
 
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     if (watchingSentRef.current) {
+      if (consumeInputBlurSuppressed()) return; // user grabbed the character — stay
       greeterBus.emit({ type: "inputBlur", value: e.target.value });
       watchingSentRef.current = false;
     }

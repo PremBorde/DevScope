@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { suppressNextInputBlur } from "@/lib/greeterBus";
 
 type Phase = "entering" | "greeting" | "waving" | "exiting" | "done";
 export type HatType = "hard" | "grad" | "party" | "sleep" | null;
@@ -195,6 +196,8 @@ export default function HomeGreeter({
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
+    // Prevent the input's blur from firing the watcher-exit sequence
+    suppressNextInputBlur();
     didDragRef.current = false;
     dragOrigin.current = { mx: e.clientX, my: e.clientY, ex: rect.left, ey: rect.top };
     setIsDragging(true);
