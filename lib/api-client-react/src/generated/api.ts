@@ -762,6 +762,184 @@ export function useCompareGithubProfiles<
 }
 
 /**
+ * Returns the most recently saved analysis snapshot from the database. No GitHub API call is made — pure DB read.
+ * @summary Get latest public report for a GitHub user
+ */
+export const getGetReportByUsernameUrl = (username: string) => {
+  return `/api/report/${username}`;
+};
+
+export const getReportByUsername = async (
+  username: string,
+  options?: RequestInit,
+): Promise<AnalysisResult> => {
+  return customFetch<AnalysisResult>(getGetReportByUsernameUrl(username), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReportByUsernameQueryKey = (username: string) => {
+  return [`/api/report/${username}`] as const;
+};
+
+export const getGetReportByUsernameQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReportByUsername>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportByUsername>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetReportByUsernameQueryKey(username);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReportByUsername>>
+  > = ({ signal }) =>
+    getReportByUsername(username, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!username,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReportByUsername>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReportByUsernameQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReportByUsername>>
+>;
+export type GetReportByUsernameQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get latest public report for a GitHub user
+ */
+
+export function useGetReportByUsername<
+  TData = Awaited<ReturnType<typeof getReportByUsername>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportByUsername>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReportByUsernameQueryOptions(username, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns an exact saved analysis snapshot by its numeric ID. Permanent link — the data never changes.
+ * @summary Get a specific analysis snapshot by ID
+ */
+export const getGetReportByIdUrl = (id: number) => {
+  return `/api/report/view/${id}`;
+};
+
+export const getReportById = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AnalysisResult> => {
+  return customFetch<AnalysisResult>(getGetReportByIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReportByIdQueryKey = (id: number) => {
+  return [`/api/report/view/${id}`] as const;
+};
+
+export const getGetReportByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReportById>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReportByIdQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getReportById>>> = ({
+    signal,
+  }) => getReportById(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReportById>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReportByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReportById>>
+>;
+export type GetReportByIdQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a specific analysis snapshot by ID
+ */
+
+export function useGetReportById<
+  TData = Awaited<ReturnType<typeof getReportById>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReportByIdQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Returns aggregate stats about all analyses performed
  * @summary Get platform-wide statistics
  */

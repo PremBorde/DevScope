@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: analyze
     description: GitHub profile analysis
+  - name: report
+    description: Public shareable report snapshots
   - name: history
     description: Analysis history
   - name: analyses
@@ -255,6 +257,76 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "429":
           description: GitHub API rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /report/{username}:
+    get:
+      operationId: getReportByUsername
+      tags: [report]
+      summary: Get latest public report for a GitHub user
+      description: Returns the most recently saved analysis snapshot from the database. No GitHub API call is made — pure DB read.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest analysis snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "404":
+          description: No report found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /report/view/{id}:
+    get:
+      operationId: getReportById
+      tags: [report]
+      summary: Get a specific analysis snapshot by ID
+      description: Returns an exact saved analysis snapshot by its numeric ID. Permanent link — the data never changes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "400":
+          description: Invalid ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Report not found
           content:
             application/json:
               schema:

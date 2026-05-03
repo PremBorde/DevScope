@@ -994,6 +994,48 @@ export default function Analyze() {
             </div>
           )}
 
+          {/* ── Share this report CTA ──────────────────────────────────── */}
+          <div className="reveal border-4 border-black bg-black text-white p-7 shadow-[8px_8px_0_0_#FF8D3F] flex flex-col sm:flex-row items-center justify-between gap-5">
+            <div>
+              <p className="font-heading font-black text-xl uppercase">Share this report</p>
+              <p className="text-sm text-white/60 font-medium mt-1">
+                Anyone with the link can view a public, read-only snapshot — no login required.
+              </p>
+            </div>
+            <div className="flex gap-3 flex-shrink-0 flex-wrap">
+              {typeof navigator !== "undefined" && "share" in navigator && (
+                <button
+                  onClick={async () => {
+                    const reportUrl = `${window.location.origin}/report/${username}`;
+                    await navigator.share({
+                      title: `${profile.name ?? username} — DevScope AI Report`,
+                      text: `Check out @${username}'s GitHub profile scored ${scoreBreakdown.total}/100 by DevScope AI.`,
+                      url: reportUrl,
+                    }).catch(() => {/* dismissed */});
+                  }}
+                  className="flex items-center gap-2 border-2 border-white bg-transparent text-white px-4 py-2.5 font-bold text-sm uppercase hover:bg-white hover:text-black transition-all"
+                >
+                  <Link2 className="w-4 h-4" />
+                  Share
+                </button>
+              )}
+              <button
+                onClick={handleShareReport}
+                className="flex items-center gap-2 border-2 border-white bg-transparent text-white px-4 py-2.5 font-bold text-sm uppercase hover:bg-white hover:text-black transition-all"
+              >
+                <Link2 className="w-4 h-4" />
+                Copy Link
+              </button>
+              <button
+                onClick={() => setLocation(`/report/${username}`)}
+                className="flex items-center gap-2 border-2 border-primary bg-primary text-black px-5 py-2.5 font-bold text-sm uppercase shadow-[3px_3px_0_#FF8D3F] hover:shadow-[5px_5px_0_#FF8D3F] hover:-translate-y-0.5 transition-all"
+              >
+                View Report
+                <Link2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground text-center font-medium pb-4">
             Analyzed at {new Date(analyzedAt).toLocaleString()}
           </p>

@@ -10,9 +10,10 @@ const Home      = lazy(() => import("@/pages/home"));
 const Analyze   = lazy(() => import("@/pages/analyze"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const History   = lazy(() => import("@/pages/history"));
-const Report    = lazy(() => import("@/pages/report"));
-const Compare   = lazy(() => import("@/pages/compare"));
-const NotFound  = lazy(() => import("@/pages/not-found"));
+const Report     = lazy(() => import("@/pages/report"));
+const ReportView = lazy(() => import("@/pages/report-view"));
+const Compare    = lazy(() => import("@/pages/compare"));
+const NotFound   = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +49,7 @@ function Router() {
             <Route path="/analyze/:username"         component={Analyze}   />
             <Route path="/dashboard"                 component={Dashboard} />
             <Route path="/dashboard/history"         component={History}   />
+            <Route path="/report/view/:id"           component={ReportView} />
             <Route path="/report/:username"          component={Report}    />
             <Route path="/compare"                   component={Compare}   />
             <Route                                   component={NotFound}  />
