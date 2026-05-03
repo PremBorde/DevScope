@@ -7,13 +7,14 @@
  * Neither endpoint re-fetches GitHub or calls AI — pure DB reads.
  */
 
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { db, analysesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { AppError } from "../lib/errors";
+import { validateUsername } from "../middleware/validate-username";
 
 const router = Router();
 
-/** Reconstruct the same AnalysisResult shape the /analyze endpoint returns. */
 function rowToResult(row: typeof analysesTable.$inferSelect) {
   return {
     id: row.id,
@@ -29,13 +30,11 @@ function rowToResult(row: typeof analysesTable.$inferSelect) {
   };
 }
 
-// GET /report/view/:id  — must be declared BEFORE /:username so "view" isn't
-// consumed as a username parameter.
-router.get("/view/:id", async (req: Request, res: Response) => {
+// GET /report/view/:id — must be declared BEFORE /:username
+router.get("/view/:id", async (req: Request, res: Response, next: NextFunction) => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id) || id <= 0) {
-    res.status(400).json({ error: "validation_error", message: "Invalid report ID" });
-    return;
+    return next(new AppError(400, "validation_error", "Report ID must be a positive integer"));
   }
 
   try {
@@ -46,46 +45,45 @@ router.get("/view/:id", async (req: Request, res: Response) => {
       .limit(1);
 
     if (!row) {
-      res.status(404).json({ error: "not_found", message: `No report found with id ${id}` });
-      return;
+      return next(new AppError(404, "not_found", `No report found with id ${id}`));
     }
 
     res.json(rowToResult(row));
   } catch (err) {
-    req.log?.error({ err }, "Failed to fetch report by id");
-    res.status(500).json({ error: "internal_error", message: "Failed to fetch report" });
+    next(err);
   }
 });
 
-// GET /report/:username  — latest analysis for this username
-router.get("/:username", async (req: Request, res: Response) => {
-  const username = (req.params.username as string)?.toLowerCase().trim();
-  if (!username) {
-    res.status(400).json({ error: "validation_error", message: "Username is required" });
-    return;
-  }
+// GET /report/:username — latest analysis for this username
+router.get(
+  "/:username",
+  validateUsername(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const username = req.params.username as string;
 
-  try {
-    const [row] = await db
-      .select()
-      .from(analysesTable)
-      .where(eq(analysesTable.username, username))
-      .orderBy(desc(analysesTable.analyzedAt))
-      .limit(1);
+    try {
+      const [row] = await db
+        .select()
+        .from(analysesTable)
+        .where(eq(analysesTable.username, username))
+        .orderBy(desc(analysesTable.analyzedAt))
+        .limit(1);
 
-    if (!row) {
-      res.status(404).json({
-        error: "not_found",
-        message: `No report found for @${username}. Run an analysis first.`,
-      });
-      return;
+      if (!row) {
+        return next(
+          new AppError(
+            404,
+            "not_found",
+            `No report found for @${username}. Run an analysis first.`,
+          ),
+        );
+      }
+
+      res.json(rowToResult(row));
+    } catch (err) {
+      next(err);
     }
-
-    res.json(rowToResult(row));
-  } catch (err) {
-    req.log?.error({ err }, "Failed to fetch report by username");
-    res.status(500).json({ error: "internal_error", message: "Failed to fetch report" });
-  }
-});
+  },
+);
 
 export default router;

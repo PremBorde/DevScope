@@ -1,6 +1,7 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { redisGet, redisSet, redisDel } from "../config/redis";
+import { AppError } from "../lib/errors";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ function buildPrompt(
   score: number,
   breakdown: Record<string, number>,
   weaknesses: string[],
-  strengths: string[]
+  strengths: string[],
 ): string {
   return `
 You are a brutally honest senior engineering career mentor.
@@ -123,7 +124,7 @@ function buildFallback(score: number): Record<string, string[]> {
 }
 
 // POST /ai/roadmap
-router.post("/roadmap", async (req: Request, res: Response) => {
+router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) => {
   const { username, score, breakdown, weaknesses, strengths, regenerate } = req.body as {
     username: string;
     score: number;
@@ -133,18 +134,18 @@ router.post("/roadmap", async (req: Request, res: Response) => {
     regenerate?: boolean;
   };
 
-  if (!username || typeof score !== "number") {
-    res.status(400).json({ error: "validation_error", message: "username and score are required" });
-    return;
+  if (!username || typeof username !== "string" || !username.trim()) {
+    return next(new AppError(400, "validation_error", "username is required"));
+  }
+  if (typeof score !== "number" || isNaN(score)) {
+    return next(new AppError(400, "validation_error", "score must be a number"));
   }
 
   const key = cacheKey(username);
 
-  // Clear cache if regenerating
   if (regenerate) {
     await redisDel(key);
   } else {
-    // Return cached roadmap if available
     const cached = await redisGet(key);
     if (cached) {
       try {
@@ -166,7 +167,7 @@ router.post("/roadmap", async (req: Request, res: Response) => {
       score,
       breakdown ?? {},
       Array.isArray(weaknesses) ? weaknesses : [],
-      Array.isArray(strengths) ? strengths : []
+      Array.isArray(strengths) ? strengths : [],
     );
 
     const result = await ai.models.generateContent({
@@ -182,7 +183,6 @@ router.post("/roadmap", async (req: Request, res: Response) => {
       throw new Error("Invalid roadmap structure from Gemini");
     }
 
-    // Ensure exactly 3 tasks per week
     weeks = {
       week1: (parsed.week1 as string[]).slice(0, 3),
       week2: (parsed.week2 as string[]).slice(0, 3),

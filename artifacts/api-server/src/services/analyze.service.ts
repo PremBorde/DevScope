@@ -8,6 +8,7 @@ import { ai } from "@workspace/integrations-gemini-ai";
 import { calculateScore, type ScoredUser, type ScoredRepo } from "./scoring.service";
 import { getCached, setCached } from "./github-cache.service";
 import { logger } from "../lib/logger";
+import { AppError } from "../lib/errors";
 
 export interface GithubUser extends ScoredUser {
   message?: string;
@@ -55,23 +56,45 @@ export interface AnalysisData {
 }
 
 export async function fetchGitHubUser(username: string): Promise<GithubUser> {
-  const res = await fetch(`https://api.github.com/users/${username}`, {
-    headers: { Accept: "application/vnd.github.v3+json" },
-  });
-  if (res.status === 404) throw { status: 404, message: `GitHub user '${username}' not found` };
-  if (res.status === 429 || res.status === 403) throw { status: 429, message: "GitHub API rate limit exceeded. Try again later." };
-  if (!res.ok) throw { status: 500, message: `GitHub API error: ${res.status}` };
+  let res: Response;
+  try {
+    res = await fetch(`https://api.github.com/users/${username}`, {
+      headers: { Accept: "application/vnd.github.v3+json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    logger.warn({ err, username }, "GitHub API network error");
+    throw new AppError(502, "github_api_error", "Could not reach GitHub API. Please try again.");
+  }
+
+  if (res.status === 404) {
+    throw new AppError(404, "github_not_found", `GitHub user '${username}' not found`);
+  }
+  if (res.status === 429 || res.status === 403) {
+    throw new AppError(429, "github_rate_limit", "GitHub API rate limit exceeded. Please try again in a few minutes.");
+  }
+  if (!res.ok) {
+    throw new AppError(502, "github_api_error", `GitHub API returned an error (HTTP ${res.status}). Try again shortly.`);
+  }
   return res.json() as Promise<GithubUser>;
 }
 
 export async function fetchGitHubRepos(username: string): Promise<GithubRepo[]> {
-  const res = await fetch(
-    `https://api.github.com/users/${username}/repos?per_page=100&sort=updated&type=owner`,
-    { headers: { Accept: "application/vnd.github.v3+json" } }
-  );
-  if (!res.ok) return [];
-  const repos = await res.json() as GithubRepo[];
-  return repos.filter((r) => !r.fork);
+  try {
+    const res = await fetch(
+      `https://api.github.com/users/${username}/repos?per_page=100&sort=updated&type=owner`,
+      {
+        headers: { Accept: "application/vnd.github.v3+json" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!res.ok) return [];
+    const repos = (await res.json()) as GithubRepo[];
+    return repos.filter((r) => !r.fork);
+  } catch {
+    logger.warn({ username }, "Failed to fetch GitHub repos — continuing with empty list");
+    return [];
+  }
 }
 
 export function computeLanguageDistribution(repos: GithubRepo[]): Record<string, number> {
@@ -82,7 +105,7 @@ export function computeLanguageDistribution(repos: GithubRepo[]): Record<string,
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   if (total === 0) return {};
   return Object.fromEntries(
-    Object.entries(counts).map(([k, v]) => [k, Math.round((v / total) * 1000) / 10])
+    Object.entries(counts).map(([k, v]) => [k, Math.round((v / total) * 1000) / 10]),
   );
 }
 
@@ -90,7 +113,7 @@ export async function generateAiInsights(
   user: GithubUser,
   repoStats: RepoStats,
   scoreResult: ReturnType<typeof calculateScore>,
-  languageDist: Record<string, number>
+  languageDist: Record<string, number>,
 ): Promise<AiInsights> {
   const { flat: scoreBreakdown, breakdown, meta } = scoreResult;
 
@@ -141,7 +164,8 @@ Return ONLY a JSON object:
       hiringRecommendation: parsed.hiringRecommendation ?? "consider",
       summary: parsed.summary ?? "No summary available.",
     };
-  } catch {
+  } catch (err) {
+    logger.warn({ err, username: user.login }, "Gemini AI insights failed — using deterministic fallback");
     const score = scoreBreakdown.total;
     return {
       strengths: [
@@ -156,8 +180,12 @@ Return ONLY a JSON object:
           : "Building a public portfolio",
       ],
       weaknesses: [
-        scoreBreakdown.completeness < 6 ? "Profile completeness needs improvement (bio, descriptions)" : "Could improve repo documentation coverage",
-        meta.daysSinceLastCommit > 90 ? `No GitHub activity in ${meta.daysSinceLastCommit} days` : "Limited community engagement (forks/stars)",
+        scoreBreakdown.completeness < 6
+          ? "Profile completeness needs improvement (bio, descriptions)"
+          : "Could improve repo documentation coverage",
+        meta.daysSinceLastCommit > 90
+          ? `No GitHub activity in ${meta.daysSinceLastCommit} days`
+          : "Limited community engagement (forks/stars)",
       ],
       suggestions: [
         "Add detailed README files to key repositories",
@@ -190,9 +218,10 @@ export async function analyzeUser(username: string): Promise<AnalysisData> {
     totalStars: meta.totalStars,
     totalForks: meta.totalForks,
     avgStarsPerRepo: meta.avgStarsPerRepo,
-    reposWithReadme: Math.round(repos.length * meta.readmeCoverage / 100),
-    reposWithDescription: Math.round(repos.length * meta.descriptionCoverage / 100),
-    mostStarredRepo: [...repos].sort((a, b) => b.stargazers_count - a.stargazers_count)[0]?.name ?? null,
+    reposWithReadme: Math.round((repos.length * meta.readmeCoverage) / 100),
+    reposWithDescription: Math.round((repos.length * meta.descriptionCoverage) / 100),
+    mostStarredRepo:
+      [...repos].sort((a, b) => b.stargazers_count - a.stargazers_count)[0]?.name ?? null,
     topLanguages: Object.entries(languageDistribution)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -201,18 +230,21 @@ export async function analyzeUser(username: string): Promise<AnalysisData> {
 
   const aiInsights = await generateAiInsights(user, repoStats, scoreResult, languageDistribution);
 
-  const [saved] = await db.insert(analysesTable).values({
-    username: user.login,
-    score: String(scoreBreakdown.total),
-    hiringRecommendation: aiInsights.hiringRecommendation,
-    avatarUrl: user.avatar_url,
-    topLanguages: repoStats.topLanguages,
-    profileJson: user as unknown as Record<string, unknown>,
-    repoStatsJson: repoStats as unknown as Record<string, unknown>,
-    languageDistributionJson: languageDistribution,
-    scoreBreakdownJson: scoreBreakdown as unknown as Record<string, unknown>,
-    aiInsightsJson: aiInsights as unknown as Record<string, unknown>,
-  }).returning();
+  const [saved] = await db
+    .insert(analysesTable)
+    .values({
+      username: user.login,
+      score: String(scoreBreakdown.total),
+      hiringRecommendation: aiInsights.hiringRecommendation,
+      avatarUrl: user.avatar_url,
+      topLanguages: repoStats.topLanguages,
+      profileJson: user as unknown as Record<string, unknown>,
+      repoStatsJson: repoStats as unknown as Record<string, unknown>,
+      languageDistributionJson: languageDistribution,
+      scoreBreakdownJson: scoreBreakdown as unknown as Record<string, unknown>,
+      aiInsightsJson: aiInsights as unknown as Record<string, unknown>,
+    })
+    .returning();
 
   logger.info({ username }, "Analysis complete — saving to DB");
 

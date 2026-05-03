@@ -1,7 +1,9 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { db, analysesTable } from "@workspace/db";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { eq, desc } from "drizzle-orm";
+import { AppError } from "../lib/errors";
+import { validateUsername } from "../middleware/validate-username";
 
 const router = Router();
 
@@ -32,7 +34,7 @@ async function generateRoadmap(
   score: number,
   scoreBreakdown: Record<string, number>,
   aiInsights: { strengths: string[]; weaknesses: string[]; suggestions: string[] },
-  repoStats: Record<string, unknown>
+  repoStats: Record<string, unknown>,
 ): Promise<Omit<Roadmap, "username" | "score" | "generatedAt">> {
   const prompt = `You are a senior software engineering mentor. A developer's GitHub profile was scored ${score}/100.
 
@@ -107,7 +109,9 @@ Return ONLY valid JSON:
         actions: Array.isArray(phase?.actions)
           ? phase!.actions.map((a: Partial<RoadmapAction>) => ({
               text: a.text ?? "",
-              priority: (["high", "medium", "low"].includes(a.priority ?? "")) ? a.priority! : "medium",
+              priority: ["high", "medium", "low"].includes(a.priority ?? "")
+                ? a.priority!
+                : "medium",
               category: a.category ?? "general",
             }))
           : [],
@@ -117,11 +121,10 @@ Return ONLY valid JSON:
     return {
       immediate: ensurePhase(parsed.immediate, "Immediate Actions", "This week"),
       shortTerm: ensurePhase(parsed.shortTerm, "Short-Term", "1–2 weeks"),
-      midTerm:   ensurePhase(parsed.midTerm,   "Mid-Term",    "2–4 weeks"),
-      longTerm:  ensurePhase(parsed.longTerm,  "Long-Term",   "1–3 months"),
+      midTerm: ensurePhase(parsed.midTerm, "Mid-Term", "2–4 weeks"),
+      longTerm: ensurePhase(parsed.longTerm, "Long-Term", "1–3 months"),
     };
   } catch {
-    // Deterministic fallback based on score
     const low = score < 50;
     const mid = score < 70;
     return {
@@ -129,36 +132,88 @@ Return ONLY valid JSON:
         label: "Immediate Actions",
         timeframe: "This week",
         actions: [
-          { text: "Add detailed README to your top 3 repositories", priority: "high", category: "documentation" },
-          { text: "Fill in GitHub profile bio and location", priority: "high", category: "profile" },
-          { text: "Add descriptions to all public repos", priority: "high", category: "repositories" },
+          {
+            text: "Add detailed README to your top 3 repositories",
+            priority: "high",
+            category: "documentation",
+          },
+          {
+            text: "Fill in GitHub profile bio and location",
+            priority: "high",
+            category: "profile",
+          },
+          {
+            text: "Add descriptions to all public repos",
+            priority: "high",
+            category: "repositories",
+          },
         ],
       },
       shortTerm: {
         label: "Short-Term",
         timeframe: "1–2 weeks",
         actions: [
-          { text: low ? "Build a full-stack project with auth and database" : "Polish your best project with tests and CI", priority: "high", category: "projects" },
-          { text: "Deploy a live project on Vercel or Render", priority: "medium", category: "deployment" },
-          { text: mid ? "Add screenshots/demos to your top repos" : "Write a technical blog post about a project", priority: "medium", category: "visibility" },
+          {
+            text: low
+              ? "Build a full-stack project with auth and database"
+              : "Polish your best project with tests and CI",
+            priority: "high",
+            category: "projects",
+          },
+          {
+            text: "Deploy a live project on Vercel or Render",
+            priority: "medium",
+            category: "deployment",
+          },
+          {
+            text: mid
+              ? "Add screenshots/demos to your top repos"
+              : "Write a technical blog post about a project",
+            priority: "medium",
+            category: "visibility",
+          },
         ],
       },
       midTerm: {
         label: "Mid-Term",
         timeframe: "2–4 weeks",
         actions: [
-          { text: "Submit 2 pull requests to popular open-source repos", priority: "medium", category: "open-source" },
-          { text: "Add code comments and improve folder structure", priority: "medium", category: "quality" },
-          { text: "Share a project on Reddit or Hacker News", priority: "low", category: "networking" },
+          {
+            text: "Submit 2 pull requests to popular open-source repos",
+            priority: "medium",
+            category: "open-source",
+          },
+          {
+            text: "Add code comments and improve folder structure",
+            priority: "medium",
+            category: "quality",
+          },
+          {
+            text: "Share a project on Reddit or Hacker News",
+            priority: "low",
+            category: "networking",
+          },
         ],
       },
       longTerm: {
         label: "Long-Term",
         timeframe: "1–3 months",
         actions: [
-          { text: "Build a flagship project that solves a real problem", priority: "medium", category: "flagship" },
-          { text: "Maintain a consistent daily commit streak", priority: "medium", category: "activity" },
-          { text: "Grow GitHub followers by engaging with the community", priority: "low", category: "branding" },
+          {
+            text: "Build a flagship project that solves a real problem",
+            priority: "medium",
+            category: "flagship",
+          },
+          {
+            text: "Maintain a consistent daily commit streak",
+            priority: "medium",
+            category: "activity",
+          },
+          {
+            text: "Grow GitHub followers by engaging with the community",
+            priority: "low",
+            category: "branding",
+          },
         ],
       },
     };
@@ -166,53 +221,59 @@ Return ONLY valid JSON:
 }
 
 // GET /roadmap/:username
-router.get("/:username", async (req: Request, res: Response) => {
-  const username = (req.params.username as string)?.trim().toLowerCase();
-  if (!username) {
-    res.status(400).json({ error: "validation_error", message: "Username is required" });
-    return;
-  }
+router.get(
+  "/:username",
+  validateUsername(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const username = req.params.username as string;
 
-  try {
-    // Fetch the latest analysis for this user from the DB
-    const [latest] = await db
-      .select()
-      .from(analysesTable)
-      .where(eq(analysesTable.username, username))
-      .orderBy(desc(analysesTable.analyzedAt))
-      .limit(1);
+    try {
+      const [latest] = await db
+        .select()
+        .from(analysesTable)
+        .where(eq(analysesTable.username, username))
+        .orderBy(desc(analysesTable.analyzedAt))
+        .limit(1);
 
-    if (!latest) {
-      res.status(404).json({
-        error: "not_found",
-        message: `No analysis found for '${username}'. Analyze the profile first.`,
-      });
-      return;
+      if (!latest) {
+        return next(
+          new AppError(
+            404,
+            "not_found",
+            `No analysis found for '${username}'. Analyze the profile first.`,
+          ),
+        );
+      }
+
+      const scoreBreakdown = latest.scoreBreakdownJson as Record<string, number>;
+      const aiInsights = latest.aiInsightsJson as {
+        strengths: string[];
+        weaknesses: string[];
+        suggestions: string[];
+      };
+      const repoStats = latest.repoStatsJson as Record<string, unknown>;
+      const score = Number(latest.score);
+
+      const phases = await generateRoadmap(
+        username,
+        score,
+        scoreBreakdown,
+        aiInsights,
+        repoStats,
+      );
+
+      const roadmap: Roadmap = {
+        username,
+        score,
+        ...phases,
+        generatedAt: new Date().toISOString(),
+      };
+
+      res.json(roadmap);
+    } catch (err) {
+      next(err);
     }
-
-    const scoreBreakdown = latest.scoreBreakdownJson as Record<string, number>;
-    const aiInsights = latest.aiInsightsJson as {
-      strengths: string[];
-      weaknesses: string[];
-      suggestions: string[];
-    };
-    const repoStats = latest.repoStatsJson as Record<string, unknown>;
-    const score = Number(latest.score);
-
-    const phases = await generateRoadmap(username, score, scoreBreakdown, aiInsights, repoStats);
-
-    const roadmap: Roadmap = {
-      username,
-      score,
-      ...phases,
-      generatedAt: new Date().toISOString(),
-    };
-
-    res.json(roadmap);
-  } catch (err) {
-    req.log?.error({ err }, "Failed to generate roadmap");
-    res.status(500).json({ error: "internal_error", message: "Failed to generate roadmap" });
-  }
-});
+  },
+);
 
 export default router;

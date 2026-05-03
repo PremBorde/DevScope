@@ -1,8 +1,10 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { analyzeUser, type AnalysisData } from "../services/analyze.service";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { logger } from "../lib/logger";
 import { redisGet, redisSet } from "../config/redis";
+import { AppError } from "../lib/errors";
+import { compareLimiter } from "../middleware/rate-limit";
 
 const COMPARE_CACHE_TTL = 900; // 15 minutes
 
@@ -13,17 +15,26 @@ function compareCacheKey(u1: string, u2: string): string {
 
 const router = Router();
 
-type CategoryKey = "repoQuality" | "activityConsistency" | "techDiversity" | "popularity" | "completeness";
+type CategoryKey =
+  | "repoQuality"
+  | "activityConsistency"
+  | "techDiversity"
+  | "popularity"
+  | "completeness";
 
 const CATEGORY_LABELS: Record<CategoryKey, string> = {
-  repoQuality:          "repo quality",
-  activityConsistency:  "activity consistency",
-  techDiversity:        "tech diversity",
-  popularity:           "community popularity",
-  completeness:         "profile completeness",
+  repoQuality: "repo quality",
+  activityConsistency: "activity consistency",
+  techDiversity: "tech diversity",
+  popularity: "community popularity",
+  completeness: "profile completeness",
 };
 
-function getCategoryWinner(r1: AnalysisData, r2: AnalysisData, key: CategoryKey): "user1" | "user2" | "tie" {
+function getCategoryWinner(
+  r1: AnalysisData,
+  r2: AnalysisData,
+  key: CategoryKey,
+): "user1" | "user2" | "tie" {
   const v1 = r1.scoreBreakdown[key];
   const v2 = r2.scoreBreakdown[key];
   if (v1 > v2) return "user1";
@@ -31,21 +42,26 @@ function getCategoryWinner(r1: AnalysisData, r2: AnalysisData, key: CategoryKey)
   return "tie";
 }
 
-function buildBaseComparison(r1: AnalysisData, u1: string, r2: AnalysisData, u2: string) {
+function buildBaseComparison(
+  r1: AnalysisData,
+  u1: string,
+  r2: AnalysisData,
+  u2: string,
+) {
   const s1 = r1.scoreBreakdown.total;
   const s2 = r2.scoreBreakdown.total;
   const diff = Math.abs(s1 - s2);
 
   const categoryWinners = {
-    repoQuality:          getCategoryWinner(r1, r2, "repoQuality"),
-    activityConsistency:  getCategoryWinner(r1, r2, "activityConsistency"),
-    techDiversity:        getCategoryWinner(r1, r2, "techDiversity"),
-    popularity:           getCategoryWinner(r1, r2, "popularity"),
-    completeness:         getCategoryWinner(r1, r2, "completeness"),
+    repoQuality: getCategoryWinner(r1, r2, "repoQuality"),
+    activityConsistency: getCategoryWinner(r1, r2, "activityConsistency"),
+    techDiversity: getCategoryWinner(r1, r2, "techDiversity"),
+    popularity: getCategoryWinner(r1, r2, "popularity"),
+    completeness: getCategoryWinner(r1, r2, "completeness"),
   };
 
-  const user1CatWins = Object.values(categoryWinners).filter(w => w === "user1").length;
-  const user2CatWins = Object.values(categoryWinners).filter(w => w === "user2").length;
+  const user1CatWins = Object.values(categoryWinners).filter((w) => w === "user1").length;
+  const user2CatWins = Object.values(categoryWinners).filter((w) => w === "user2").length;
 
   let winner: "user1" | "user2" | "tie";
   let winnerUsername: string;
@@ -80,9 +96,11 @@ function buildBaseComparison(r1: AnalysisData, u1: string, r2: AnalysisData, u2:
 }
 
 async function generateAiVerdict(
-  r1: AnalysisData, u1: string,
-  r2: AnalysisData, u2: string,
-  fallback: string
+  r1: AnalysisData,
+  u1: string,
+  r2: AnalysisData,
+  u2: string,
+  fallback: string,
 ): Promise<string> {
   const prompt = `You are a brutally honest senior technical recruiter making a real hiring decision. Compare these two GitHub developers and give a hiring verdict in exactly 2-3 sentences. Be specific, reference actual numbers, and name the winner clearly.
 
@@ -114,21 +132,31 @@ Return only the verdict text. No headers, no JSON, no markdown.`;
   }
 }
 
-router.get("/", async (req: Request, res: Response) => {
-  const user1 = String(req.query.user1 ?? "").trim().toLowerCase();
-  const user2 = String(req.query.user2 ?? "").trim().toLowerCase();
-
-  if (!user1 || !user2) {
-    res.status(400).json({ error: "validation_error", message: "user1 and user2 query params are required" });
-    return;
+// Validate a single GitHub username query param (user1 / user2)
+function validateQueryUsername(value: string, field: string): string {
+  const v = value.trim().toLowerCase();
+  if (!v) throw new AppError(400, "validation_error", `${field} is required`);
+  if (v.length > 39) throw new AppError(400, "validation_error", `${field} must be 39 characters or fewer`);
+  if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$|^[a-zA-Z0-9]$/.test(v)) {
+    throw new AppError(400, "validation_error", `${field} is not a valid GitHub username`);
   }
+  return v;
+}
+
+router.get("/", compareLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  let user1: string, user2: string;
+  try {
+    user1 = validateQueryUsername(String(req.query.user1 ?? ""), "user1");
+    user2 = validateQueryUsername(String(req.query.user2 ?? ""), "user2");
+  } catch (err) {
+    return next(err);
+  }
+
   if (user1 === user2) {
-    res.status(400).json({ error: "validation_error", message: "user1 and user2 must be different usernames" });
-    return;
+    return next(new AppError(400, "validation_error", "user1 and user2 must be different usernames"));
   }
 
   try {
-    // Check compare-level cache (covers both orderings via sorted key)
     const cacheKey = compareCacheKey(user1, user2);
     const cached = await redisGet(cacheKey);
     if (cached) {
@@ -148,21 +176,15 @@ router.get("/", async (req: Request, res: Response) => {
 
     const responseBody = { user1: result1, user2: result2, comparison };
 
-    // Cache the full compare result
     await redisSet(cacheKey, JSON.stringify(responseBody), COMPARE_CACHE_TTL);
-    logger.info({ user1, user2, cacheKey, ttl: COMPARE_CACHE_TTL }, "[COMPARE CACHE SET] Cached comparison result");
+    logger.info(
+      { user1, user2, cacheKey, ttl: COMPARE_CACHE_TTL },
+      "[COMPARE CACHE SET] Cached comparison result",
+    );
 
     res.json(responseBody);
-  } catch (err: unknown) {
-    const apiErr = err as { status?: number; message?: string };
-    if (apiErr.status === 404) {
-      res.status(404).json({ error: "not_found", message: apiErr.message ?? "User not found" });
-    } else if (apiErr.status === 429) {
-      res.status(429).json({ error: "rate_limit", message: apiErr.message ?? "Rate limit exceeded" });
-    } else {
-      req.log?.error({ err }, "Failed to compare GitHub users");
-      res.status(500).json({ error: "internal_error", message: "Failed to compare profiles. Please try again." });
-    }
+  } catch (err) {
+    next(err);
   }
 });
 

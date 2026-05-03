@@ -85,7 +85,7 @@ Routes:
 - Font: Inter (body), system heading via `font-heading`
 - Uppercase labels, tight tracking, no border-radius
 
-## Current Feature Set (Update 13)
+## Current Feature Set (Update 14 — Production Hardened)
 
 1. GitHub profile scoring (0-100), 5 categories
 2. Gemini AI strengths/weaknesses/summary/hiring recommendation
