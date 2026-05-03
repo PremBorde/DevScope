@@ -226,6 +226,153 @@ export const GetAiRoadmapResponse = zod.object({
 });
 
 /**
+ * Analyzes two GitHub profiles in parallel, scores each, generates AI insights, and returns a structured comparison with an AI-generated hiring verdict.
+ * @summary Compare two GitHub profiles side-by-side
+ */
+export const CompareGithubProfilesQueryParams = zod.object({
+  user1: zod.coerce.string().describe("First GitHub username"),
+  user2: zod.coerce.string().describe("Second GitHub username"),
+});
+
+export const CompareGithubProfilesResponse = zod.object({
+  user1: zod.object({
+    id: zod.number().optional(),
+    username: zod.string(),
+    profile: zod.object({
+      login: zod.string(),
+      name: zod.string().nullish(),
+      avatar_url: zod.string(),
+      bio: zod.string().nullish(),
+      location: zod.string().nullish(),
+      public_repos: zod.number(),
+      followers: zod.number(),
+      following: zod.number(),
+      created_at: zod.string(),
+      html_url: zod.string(),
+    }),
+    repoStats: zod.object({
+      totalRepos: zod.number(),
+      totalStars: zod.number(),
+      totalForks: zod.number(),
+      avgStarsPerRepo: zod.number(),
+      reposWithReadme: zod.number(),
+      reposWithDescription: zod.number(),
+      mostStarredRepo: zod.string().nullish(),
+      topLanguages: zod.array(zod.string()),
+    }),
+    languageDistribution: zod
+      .record(zod.string(), zod.number())
+      .describe("Language name to percentage mapping"),
+    scoreBreakdown: zod.object({
+      repoQuality: zod.number().describe("Score for repository quality (0-30)"),
+      activityConsistency: zod
+        .number()
+        .describe("Score for activity consistency (0-25)"),
+      techDiversity: zod
+        .number()
+        .describe("Score for technology diversity (0-20)"),
+      popularity: zod
+        .number()
+        .describe("Score for popularity via stars\/forks (0-15)"),
+      completeness: zod
+        .number()
+        .describe("Score for profile completeness (0-10)"),
+      total: zod.number().describe("Total score (0-100)"),
+    }),
+    aiInsights: zod.object({
+      strengths: zod.array(zod.string()),
+      weaknesses: zod.array(zod.string()),
+      suggestions: zod.array(zod.string()),
+      hiringRecommendation: zod.enum([
+        "strong_hire",
+        "hire",
+        "consider",
+        "pass",
+      ]),
+      summary: zod.string(),
+    }),
+    analyzedAt: zod.string(),
+    cached: zod.boolean(),
+  }),
+  user2: zod.object({
+    id: zod.number().optional(),
+    username: zod.string(),
+    profile: zod.object({
+      login: zod.string(),
+      name: zod.string().nullish(),
+      avatar_url: zod.string(),
+      bio: zod.string().nullish(),
+      location: zod.string().nullish(),
+      public_repos: zod.number(),
+      followers: zod.number(),
+      following: zod.number(),
+      created_at: zod.string(),
+      html_url: zod.string(),
+    }),
+    repoStats: zod.object({
+      totalRepos: zod.number(),
+      totalStars: zod.number(),
+      totalForks: zod.number(),
+      avgStarsPerRepo: zod.number(),
+      reposWithReadme: zod.number(),
+      reposWithDescription: zod.number(),
+      mostStarredRepo: zod.string().nullish(),
+      topLanguages: zod.array(zod.string()),
+    }),
+    languageDistribution: zod
+      .record(zod.string(), zod.number())
+      .describe("Language name to percentage mapping"),
+    scoreBreakdown: zod.object({
+      repoQuality: zod.number().describe("Score for repository quality (0-30)"),
+      activityConsistency: zod
+        .number()
+        .describe("Score for activity consistency (0-25)"),
+      techDiversity: zod
+        .number()
+        .describe("Score for technology diversity (0-20)"),
+      popularity: zod
+        .number()
+        .describe("Score for popularity via stars\/forks (0-15)"),
+      completeness: zod
+        .number()
+        .describe("Score for profile completeness (0-10)"),
+      total: zod.number().describe("Total score (0-100)"),
+    }),
+    aiInsights: zod.object({
+      strengths: zod.array(zod.string()),
+      weaknesses: zod.array(zod.string()),
+      suggestions: zod.array(zod.string()),
+      hiringRecommendation: zod.enum([
+        "strong_hire",
+        "hire",
+        "consider",
+        "pass",
+      ]),
+      summary: zod.string(),
+    }),
+    analyzedAt: zod.string(),
+    cached: zod.boolean(),
+  }),
+  comparison: zod.object({
+    winner: zod.enum(["user1", "user2", "tie"]),
+    winnerUsername: zod.string(),
+    reason: zod
+      .string()
+      .describe("AI-generated or deterministic hiring verdict"),
+    scoreDiff: zod
+      .number()
+      .describe("Absolute difference between the two scores"),
+    categoryWinners: zod.object({
+      repoQuality: zod.enum(["user1", "user2", "tie"]),
+      activityConsistency: zod.enum(["user1", "user2", "tie"]),
+      techDiversity: zod.enum(["user1", "user2", "tie"]),
+      popularity: zod.enum(["user1", "user2", "tie"]),
+      completeness: zod.enum(["user1", "user2", "tie"]),
+    }),
+  }),
+});
+
+/**
  * Returns aggregate stats about all analyses performed
  * @summary Get platform-wide statistics
  */

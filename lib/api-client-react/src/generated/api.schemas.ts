@@ -161,6 +161,84 @@ export interface Roadmap {
   generatedAt: string;
 }
 
+export type CategoryWinnersRepoQuality =
+  (typeof CategoryWinnersRepoQuality)[keyof typeof CategoryWinnersRepoQuality];
+
+export const CategoryWinnersRepoQuality = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export type CategoryWinnersActivityConsistency =
+  (typeof CategoryWinnersActivityConsistency)[keyof typeof CategoryWinnersActivityConsistency];
+
+export const CategoryWinnersActivityConsistency = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export type CategoryWinnersTechDiversity =
+  (typeof CategoryWinnersTechDiversity)[keyof typeof CategoryWinnersTechDiversity];
+
+export const CategoryWinnersTechDiversity = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export type CategoryWinnersPopularity =
+  (typeof CategoryWinnersPopularity)[keyof typeof CategoryWinnersPopularity];
+
+export const CategoryWinnersPopularity = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export type CategoryWinnersCompleteness =
+  (typeof CategoryWinnersCompleteness)[keyof typeof CategoryWinnersCompleteness];
+
+export const CategoryWinnersCompleteness = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export interface CategoryWinners {
+  repoQuality: CategoryWinnersRepoQuality;
+  activityConsistency: CategoryWinnersActivityConsistency;
+  techDiversity: CategoryWinnersTechDiversity;
+  popularity: CategoryWinnersPopularity;
+  completeness: CategoryWinnersCompleteness;
+}
+
+export type ComparisonSummaryWinner =
+  (typeof ComparisonSummaryWinner)[keyof typeof ComparisonSummaryWinner];
+
+export const ComparisonSummaryWinner = {
+  user1: "user1",
+  user2: "user2",
+  tie: "tie",
+} as const;
+
+export interface ComparisonSummary {
+  winner: ComparisonSummaryWinner;
+  winnerUsername: string;
+  /** AI-generated or deterministic hiring verdict */
+  reason: string;
+  /** Absolute difference between the two scores */
+  scoreDiff: number;
+  categoryWinners: CategoryWinners;
+}
+
+export interface CompareResult {
+  user1: AnalysisResult;
+  user2: AnalysisResult;
+  comparison: ComparisonSummary;
+}
+
 export type PlatformStatsHiringBreakdown = {
   strong_hire: number;
   hire: number;
@@ -181,4 +259,15 @@ export type GetAnalysisHistoryParams = {
    * @maximum 50
    */
   limit?: number;
+};
+
+export type CompareGithubProfilesParams = {
+  /**
+   * First GitHub username
+   */
+  user1: string;
+  /**
+   * Second GitHub username
+   */
+  user2: string;
 };

@@ -19,6 +19,8 @@ import type {
 import type {
   AnalysisResult,
   AnalysisSummary,
+  CompareGithubProfilesParams,
+  CompareResult,
   ErrorResponse,
   GetAnalysisHistoryParams,
   HealthStatus,
@@ -650,6 +652,107 @@ export function useGetAiRoadmap<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetAiRoadmapQueryOptions(username, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Analyzes two GitHub profiles in parallel, scores each, generates AI insights, and returns a structured comparison with an AI-generated hiring verdict.
+ * @summary Compare two GitHub profiles side-by-side
+ */
+export const getCompareGithubProfilesUrl = (
+  params: CompareGithubProfilesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/compare?${stringifiedParams}`
+    : `/api/compare`;
+};
+
+export const compareGithubProfiles = async (
+  params: CompareGithubProfilesParams,
+  options?: RequestInit,
+): Promise<CompareResult> => {
+  return customFetch<CompareResult>(getCompareGithubProfilesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getCompareGithubProfilesQueryKey = (
+  params?: CompareGithubProfilesParams,
+) => {
+  return [`/api/compare`, ...(params ? [params] : [])] as const;
+};
+
+export const getCompareGithubProfilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof compareGithubProfiles>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: CompareGithubProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareGithubProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCompareGithubProfilesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof compareGithubProfiles>>
+  > = ({ signal }) =>
+    compareGithubProfiles(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof compareGithubProfiles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type CompareGithubProfilesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof compareGithubProfiles>>
+>;
+export type CompareGithubProfilesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Compare two GitHub profiles side-by-side
+ */
+
+export function useCompareGithubProfiles<
+  TData = Awaited<ReturnType<typeof compareGithubProfiles>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: CompareGithubProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareGithubProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getCompareGithubProfilesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

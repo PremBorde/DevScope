@@ -50,7 +50,6 @@ function Router() {
             <Route path="/dashboard/history"         component={History}   />
             <Route path="/report/:username"          component={Report}    />
             <Route path="/compare"                   component={Compare}   />
-            <Route path="/compare/:userA/:userB"     component={Compare}   />
             <Route                                   component={NotFound}  />
           </Switch>
         </Suspense>

@@ -7,12 +7,14 @@ import authRouter from "./auth";
 import roadmapRouter from "./roadmap";
 import analysesRouter from "./analyses";
 import aiRouter from "./ai";
+import compareRouter from "./compare";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/analyze", analyzeRouter);
+router.use("/compare", compareRouter);
 router.use("/history", historyRouter);
 router.use("/roadmap", roadmapRouter);
 router.use("/analyses", analysesRouter);

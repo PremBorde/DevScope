@@ -215,6 +215,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /compare:
+    get:
+      operationId: compareGithubProfiles
+      tags: [analyze]
+      summary: Compare two GitHub profiles side-by-side
+      description: Analyzes two GitHub profiles in parallel, scores each, generates AI insights, and returns a structured comparison with an AI-generated hiring verdict.
+      parameters:
+        - name: user1
+          in: query
+          required: true
+          schema:
+            type: string
+          description: First GitHub username
+        - name: user2
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Second GitHub username
+      responses:
+        "200":
+          description: Side-by-side comparison result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareResult"
+        "400":
+          description: Missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: One or both GitHub users not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: GitHub API rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /stats:
     get:
       operationId: getPlatformStats
@@ -569,6 +620,68 @@ components:
         - midTerm
         - longTerm
         - generatedAt
+
+    CategoryWinners:
+      type: object
+      properties:
+        repoQuality:
+          type: string
+          enum: [user1, user2, tie]
+        activityConsistency:
+          type: string
+          enum: [user1, user2, tie]
+        techDiversity:
+          type: string
+          enum: [user1, user2, tie]
+        popularity:
+          type: string
+          enum: [user1, user2, tie]
+        completeness:
+          type: string
+          enum: [user1, user2, tie]
+      required:
+        - repoQuality
+        - activityConsistency
+        - techDiversity
+        - popularity
+        - completeness
+
+    ComparisonSummary:
+      type: object
+      properties:
+        winner:
+          type: string
+          enum: [user1, user2, tie]
+        winnerUsername:
+          type: string
+        reason:
+          type: string
+          description: AI-generated or deterministic hiring verdict
+        scoreDiff:
+          type: number
+          description: Absolute difference between the two scores
+        categoryWinners:
+          $ref: "#/components/schemas/CategoryWinners"
+      required:
+        - winner
+        - winnerUsername
+        - reason
+        - scoreDiff
+        - categoryWinners
+
+    CompareResult:
+      type: object
+      properties:
+        user1:
+          $ref: "#/components/schemas/AnalysisResult"
+        user2:
+          $ref: "#/components/schemas/AnalysisResult"
+        comparison:
+          $ref: "#/components/schemas/ComparisonSummary"
+      required:
+        - user1
+        - user2
+        - comparison
 
     PlatformStats:
       type: object
