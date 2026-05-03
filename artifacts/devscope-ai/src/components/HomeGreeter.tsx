@@ -22,9 +22,9 @@ interface Props {
 const CLICK_MESSAGES = [
   "I'm just an SVG! 😅",
   "Ouch! Stop poking! 😤",
-  "One more click… 🥚",
-  "Easter egg found! ✨",
-  "You found it all 🏳️",
+  "You're persistent! 😅",
+  "OK fine, I respect it 🫡",
+  "I give up… 🏳️",
 ];
 
 const CONFETTI_COLORS = ["#FF8D3F","#FFD700","#FF4444","#44BB44","#4488FF","#FF44FF","#44FFDD"];

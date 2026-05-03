@@ -112,7 +112,10 @@ function Router() {
       location.startsWith("/analyze/") ? "hard"  :
       null;
 
-    setNavGreeter({ msg, speed, hat, ts: now });
+    // Don't show the nav greeter if the user irritated him off this session
+    if (sessionStorage.getItem("ds_nav_quit") !== "1") {
+      setNavGreeter({ msg, speed, hat, ts: now });
+    }
 
     // Walk the watcher off if the user navigated away without submitting
     if (location !== "/") {
@@ -133,7 +136,9 @@ function Router() {
     const interval = setInterval(() => {
       if (!afkShown && Date.now() - lastActivity > 3 * 60 * 1000) {
         afkShown = true;
-        setNavGreeter({ msg: "Still there? 👀", speed: "walk", hat: "sleep", ts: Date.now() });
+        if (sessionStorage.getItem("ds_nav_quit") !== "1") {
+          setNavGreeter({ msg: "Still there? 👀", speed: "walk", hat: "sleep", ts: Date.now() });
+        }
       }
     }, 30_000);
 
@@ -151,6 +156,7 @@ function Router() {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key !== "?") return;
+      if (sessionStorage.getItem("ds_nav_quit") === "1") return;
       setNavGreeter({ msg: getPageTip(location), speed: "walk", hat: null, ts: Date.now() });
     };
     window.addEventListener("keydown", handler);
@@ -244,6 +250,12 @@ function Router() {
           speed={navGreeter.speed}
           hat={navGreeter.hat}
           side="left"
+          irritable={true}
+          onIrritated={() => {
+            sessionStorage.setItem("ds_nav_quit", "1");
+            setNavGreeter(null);
+          }}
+          onDone={() => setNavGreeter(null)}
         />
       )}
 
