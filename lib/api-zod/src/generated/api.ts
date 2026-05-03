@@ -127,6 +127,64 @@ export const GetUserAnalysisHistoryResponse = zod.array(
 );
 
 /**
+ * Generates a personalized, structured improvement roadmap using Gemini AI based on the user's latest analysis
+ * @summary Get AI improvement roadmap for a GitHub user
+ */
+export const GetAiRoadmapParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const GetAiRoadmapResponse = zod.object({
+  username: zod.string(),
+  score: zod.number(),
+  immediate: zod.object({
+    label: zod.string(),
+    timeframe: zod.string(),
+    actions: zod.array(
+      zod.object({
+        text: zod.string(),
+        priority: zod.enum(["high", "medium", "low"]),
+        category: zod.string(),
+      }),
+    ),
+  }),
+  shortTerm: zod.object({
+    label: zod.string(),
+    timeframe: zod.string(),
+    actions: zod.array(
+      zod.object({
+        text: zod.string(),
+        priority: zod.enum(["high", "medium", "low"]),
+        category: zod.string(),
+      }),
+    ),
+  }),
+  midTerm: zod.object({
+    label: zod.string(),
+    timeframe: zod.string(),
+    actions: zod.array(
+      zod.object({
+        text: zod.string(),
+        priority: zod.enum(["high", "medium", "low"]),
+        category: zod.string(),
+      }),
+    ),
+  }),
+  longTerm: zod.object({
+    label: zod.string(),
+    timeframe: zod.string(),
+    actions: zod.array(
+      zod.object({
+        text: zod.string(),
+        priority: zod.enum(["high", "medium", "low"]),
+        category: zod.string(),
+      }),
+    ),
+  }),
+  generatedAt: zod.string(),
+});
+
+/**
  * Returns aggregate stats about all analyses performed
  * @summary Get platform-wide statistics
  */

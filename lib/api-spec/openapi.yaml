@@ -113,6 +113,38 @@ paths:
                 items:
                   $ref: "#/components/schemas/AnalysisSummary"
 
+  /roadmap/{username}:
+    get:
+      operationId: getAiRoadmap
+      tags: [analyze]
+      summary: Get AI improvement roadmap for a GitHub user
+      description: Generates a personalized, structured improvement roadmap using Gemini AI based on the user's latest analysis
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: AI-generated improvement roadmap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Roadmap"
+        "404":
+          description: No analysis found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /stats:
     get:
       operationId: getPlatformStats
@@ -334,6 +366,63 @@ components:
         - hiringRecommendation
         - analyzedAt
         - topLanguages
+
+    RoadmapAction:
+      type: object
+      properties:
+        text:
+          type: string
+        priority:
+          type: string
+          enum: [high, medium, low]
+        category:
+          type: string
+      required:
+        - text
+        - priority
+        - category
+
+    RoadmapPhase:
+      type: object
+      properties:
+        label:
+          type: string
+        timeframe:
+          type: string
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoadmapAction"
+      required:
+        - label
+        - timeframe
+        - actions
+
+    Roadmap:
+      type: object
+      properties:
+        username:
+          type: string
+        score:
+          type: number
+        immediate:
+          $ref: "#/components/schemas/RoadmapPhase"
+        shortTerm:
+          $ref: "#/components/schemas/RoadmapPhase"
+        midTerm:
+          $ref: "#/components/schemas/RoadmapPhase"
+        longTerm:
+          $ref: "#/components/schemas/RoadmapPhase"
+        generatedAt:
+          type: string
+      required:
+        - username
+        - score
+        - immediate
+        - shortTerm
+        - midTerm
+        - longTerm
+        - generatedAt
 
     PlatformStats:
       type: object

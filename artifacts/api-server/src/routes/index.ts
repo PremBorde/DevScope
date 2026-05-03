@@ -4,6 +4,7 @@ import analyzeRouter from "./analyze";
 import historyRouter from "./history";
 import debugRouter from "./debug";
 import authRouter from "./auth";
+import roadmapRouter from "./roadmap";
 
 const router: IRouter = Router();
 
@@ -11,6 +12,7 @@ router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/analyze", analyzeRouter);
 router.use("/history", historyRouter);
+router.use("/roadmap", roadmapRouter);
 router.use("/debug-score", debugRouter);
 router.use("/stats", async (req, res) => {
   res.redirect(307, "/api/history/stats/platform");

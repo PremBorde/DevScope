@@ -13,6 +13,7 @@
 5. [Update 5 — Redis Caching for GitHub API](#update-5)
 6. [Update 6 — GitHub OAuth Authentication (Optional)](#update-6)
 7. [Update 7 — User History Tracking + Growth Over Time Chart](#update-7)
+8. [Update 8 — AI Improvement Roadmap ("Your Action Plan")](#update-8)
 
 ---
 
@@ -799,3 +800,127 @@ lib/
 ├── db/src/schema/analyses.ts  ← PostgreSQL analyses table
 └── integrations-gemini-ai/    ← Gemini AI client
 ```
+
+---
+
+<a name="update-8"></a>
+## Update 8 — AI Improvement Roadmap ("Your Action Plan")
+
+**Date:** May 3, 2026
+**Type:** Feature — Growth Tool / AI Personalization
+
+---
+
+### Overview
+
+Transformed DevScope AI from a passive analyzer into an active growth tool. After every analysis, Gemini AI generates a personalized 4-phase improvement roadmap — specific, concise, actionable bullet points tied to the developer's actual numbers. Users can collapse phases, check off completed actions, and track overall progress via a live progress bar.
+
+---
+
+### Backend — `GET /api/roadmap/:username` (`routes/roadmap.ts`)
+
+Fetches the latest DB row for the username, then calls Gemini AI with a structured prompt requesting a personalized JSON roadmap.
+
+**Gemini prompt highlights:**
+- Injects actual score breakdown numbers (repoQuality/30, activity/25, etc.)
+- Injects real strengths, weaknesses, and suggestions from the prior AI analysis
+- Injects repo stats (totalStars, topLanguages, reposWithReadme, etc.)
+- Instructs Gemini: "Be specific. Reference their actual numbers. No generic advice. Max 12 words per action."
+- `responseMimeType: "application/json"` — Gemini returns structured JSON directly
+
+**Roadmap shape:**
+```json
+{
+  "username": "torvalds",
+  "score": 71,
+  "immediate":  { "label": "Immediate Actions", "timeframe": "This week",    "actions": [...] },
+  "shortTerm":  { "label": "Short-Term",        "timeframe": "1–2 weeks",    "actions": [...] },
+  "midTerm":    { "label": "Mid-Term",           "timeframe": "2–4 weeks",   "actions": [...] },
+  "longTerm":   { "label": "Long-Term",          "timeframe": "1–3 months",  "actions": [...] },
+  "generatedAt": "2026-05-03T07:41:24.264Z"
+}
+```
+
+Each action: `{ "text": "...", "priority": "high|medium|low", "category": "..." }`
+
+**Deterministic fallback** — if Gemini fails, returns a score-aware static roadmap (logic differs for score < 50 / < 70 / ≥ 70).
+
+Route registered at `/api/roadmap` in `routes/index.ts`.
+
+---
+
+### OpenAPI Spec + Codegen
+
+Three new schemas added to `lib/api-spec/openapi.yaml`:
+
+| Schema | Fields |
+|---|---|
+| `RoadmapAction` | `text`, `priority` (high/medium/low enum), `category` |
+| `RoadmapPhase` | `label`, `timeframe`, `actions: RoadmapAction[]` |
+| `Roadmap` | `username`, `score`, `immediate`, `shortTerm`, `midTerm`, `longTerm`, `generatedAt` |
+
+New path: `GET /roadmap/{username}` with `operationId: getAiRoadmap`.
+
+Codegen (`pnpm --filter @workspace/api-spec run codegen`) regenerated:
+- `useGetAiRoadmap` hook + `getGetAiRoadmapQueryKey` in `api-client-react`
+- `RoadmapAction`, `RoadmapPhase`, `Roadmap`, `RoadmapActionPriority` types in `api.schemas.ts`
+- Corresponding Zod schemas in `lib/api-zod`
+
+Also fixed a pre-existing `tsc --build` error: added `"@types/node": "catalog:"` to `devDependencies` in `lib/integrations-gemini-ai/package.json`.
+
+---
+
+### Frontend — "Your Action Plan" (`pages/analyze.tsx`)
+
+Added immediately after the AI Insights section. Loads **in parallel** with the main analysis (`enabled: !!username && !!data`, `staleTime: 15min`, `retry: false`).
+
+**State:**
+```ts
+const [checked,   setChecked]   = useState<Set<string>>(new Set()); // "phaseKey-idx"
+const [collapsed, setCollapsed] = useState<Set<string>>(new Set()); // phase keys
+```
+
+**4-phase timeline layout:**
+
+| Phase | Icon | Badge | Accent |
+|---|---|---|---|
+| Immediate | ⚠️ | NOW | Red |
+| Short-Term | 🚀 | SOON | Orange |
+| Mid-Term | ✅ | NEXT | Blue |
+| Long-Term | ⭐ | LATER | Purple |
+
+**Timeline gutter** — 40×40 Neobrutalist coloured dot + vertical connector bar. Dot turns ✓ green when all actions in that phase are checked off.
+
+**Phase card header** — click to collapse/expand; shows `X/N done` counter + rotating chevron.
+
+**Action rows:**
+- Mark-as-Done checkbox — 24×24px bordered square, green fill + ✓ on check; text strikes through and greys out
+- Priority badge — `HIGH` (red) / `MED` (yellow) / `LOW` (green)
+
+**Overall Progress Bar** — sums all actions across all 4 phases, shows `X/N actions complete — Y%` with animated CSS width transition.
+
+**Section header** — "Gemini AI" eyebrow + target score (`current + 20`, capped at 100) shown top-right.
+
+**Loading state** — spinner + "Generating your personalized roadmap…" + 3 skeleton pulse blocks while waiting for Gemini.
+
+---
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `artifacts/api-server/src/routes/roadmap.ts` | Created — roadmap route + Gemini generation + fallback |
+| `artifacts/api-server/src/routes/index.ts` | Registered `/api/roadmap` |
+| `lib/api-spec/openapi.yaml` | Added `RoadmapAction`, `RoadmapPhase`, `Roadmap` schemas + endpoint |
+| `lib/api-client-react/src/generated/api.ts` | Regenerated — `useGetAiRoadmap` hook added |
+| `lib/api-client-react/src/generated/api.schemas.ts` | Regenerated — Roadmap types added |
+| `lib/integrations-gemini-ai/package.json` | Added `@types/node` devDependency (typecheck fix) |
+| `artifacts/devscope-ai/src/pages/analyze.tsx` | Added roadmap hook, state, and full "Your Action Plan" section |
+
+---
+
+### Verified
+
+- `curl http://localhost:80/api/roadmap/torvalds` → 200 in ~10s with 4 phases × 3 personalized actions
+- `pnpm --filter @workspace/devscope-ai exec tsc --noEmit` → 0 errors
+- No browser console errors after clean Vite restart

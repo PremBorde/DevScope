@@ -20,6 +20,7 @@ import type {
   GetAnalysisHistoryParams,
   HealthStatus,
   PlatformStats,
+  Roadmap,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -380,6 +381,94 @@ export function useGetUserAnalysisHistory<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetUserAnalysisHistoryQueryOptions(username, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Generates a personalized, structured improvement roadmap using Gemini AI based on the user's latest analysis
+ * @summary Get AI improvement roadmap for a GitHub user
+ */
+export const getGetAiRoadmapUrl = (username: string) => {
+  return `/api/roadmap/${username}`;
+};
+
+export const getAiRoadmap = async (
+  username: string,
+  options?: RequestInit,
+): Promise<Roadmap> => {
+  return customFetch<Roadmap>(getGetAiRoadmapUrl(username), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAiRoadmapQueryKey = (username: string) => {
+  return [`/api/roadmap/${username}`] as const;
+};
+
+export const getGetAiRoadmapQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAiRoadmap>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAiRoadmap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAiRoadmapQueryKey(username);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiRoadmap>>> = ({
+    signal,
+  }) => getAiRoadmap(username, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!username,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAiRoadmap>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAiRoadmapQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAiRoadmap>>
+>;
+export type GetAiRoadmapQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get AI improvement roadmap for a GitHub user
+ */
+
+export function useGetAiRoadmap<
+  TData = Awaited<ReturnType<typeof getAiRoadmap>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAiRoadmap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAiRoadmapQueryOptions(username, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

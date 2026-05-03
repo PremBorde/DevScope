@@ -18,4 +18,8 @@ export * from "./languageDistribution";
 export * from "./platformStats";
 export * from "./platformStatsHiringBreakdown";
 export * from "./repoStats";
+export * from "./roadmap";
+export * from "./roadmapAction";
+export * from "./roadmapActionPriority";
+export * from "./roadmapPhase";
 export * from "./scoreBreakdown";

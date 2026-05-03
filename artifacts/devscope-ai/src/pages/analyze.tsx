@@ -1,10 +1,13 @@
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAnalyzeGithubUser,
   getAnalyzeGithubUserQueryKey,
+  useGetAiRoadmap,
+  getGetAiRoadmapQueryKey,
 } from "@workspace/api-client-react";
+import type { RoadmapPhase } from "@workspace/api-client-react";
 import {
   PieChart,
   Pie,
@@ -91,6 +94,34 @@ export default function Analyze() {
       retry: false,
     },
   });
+
+  const { data: roadmap, isLoading: roadmapLoading } = useGetAiRoadmap(username, {
+    query: {
+      enabled: !!username && !!data,
+      queryKey: getGetAiRoadmapQueryKey(username),
+      retry: false,
+      staleTime: 1000 * 60 * 15,
+    },
+  });
+
+  // Mark-as-done state keyed by "phaseKey-actionIndex"
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  // Collapsed phases
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const toggleCheck = (key: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  const toggleCollapse = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   useProgressBars(breakdownRef, ".gsap-bar");
   useStaggerEntrance(statsRef, ".stat-card", { stagger: 0.1, delay: 0.1 });
@@ -418,6 +449,220 @@ export default function Analyze() {
                 </ul>
               </div>
             </div>
+          </div>
+
+          {/* ── AI Improvement Roadmap ── */}
+          <div className="reveal border-4 border-black bg-white shadow-[8px_8px_0_#000]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-8 py-5 border-b-4 border-black">
+              <div>
+                <span className="text-xs font-black uppercase tracking-widest text-primary">Gemini AI</span>
+                <h2 className="font-heading font-black uppercase text-2xl mt-0.5 flex items-center gap-2">
+                  🗺️ Your Action Plan
+                </h2>
+              </div>
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Target score</p>
+                <p className="font-heading font-black text-2xl text-primary">
+                  {Math.min(100, (scoreBreakdown.total ?? 0) + 20)}+
+                </p>
+              </div>
+            </div>
+
+            {roadmapLoading || !roadmap ? (
+              <div className="p-8 space-y-4">
+                {roadmapLoading ? (
+                  <>
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-5 h-5 border-4 border-black border-t-primary rounded-full animate-spin" />
+                      <span className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Generating your personalized roadmap…</span>
+                    </div>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-20 border-2 border-black bg-gray-50 animate-pulse" />
+                    ))}
+                  </>
+                ) : (
+                  <p className="text-muted-foreground font-medium text-center py-8">Roadmap not available. Analyze the profile first.</p>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 md:p-8">
+                {/* Timeline */}
+                <div className="space-y-0">
+                  {(
+                    [
+                      {
+                        key: "immediate",
+                        phase: roadmap.immediate,
+                        icon: "⚠️",
+                        badge: "NOW",
+                        badgeBg: "bg-red-400",
+                        connectorColor: "bg-red-400",
+                        borderAccent: "border-l-red-400",
+                        headerBg: "bg-red-50",
+                      },
+                      {
+                        key: "shortTerm",
+                        phase: roadmap.shortTerm,
+                        icon: "🚀",
+                        badge: "SOON",
+                        badgeBg: "bg-primary",
+                        connectorColor: "bg-primary",
+                        borderAccent: "border-l-primary",
+                        headerBg: "bg-orange-50",
+                      },
+                      {
+                        key: "midTerm",
+                        phase: roadmap.midTerm,
+                        icon: "✅",
+                        badge: "NEXT",
+                        badgeBg: "bg-blue-400",
+                        connectorColor: "bg-blue-400",
+                        borderAccent: "border-l-blue-400",
+                        headerBg: "bg-blue-50",
+                      },
+                      {
+                        key: "longTerm",
+                        phase: roadmap.longTerm,
+                        icon: "⭐",
+                        badge: "LATER",
+                        badgeBg: "bg-purple-400",
+                        connectorColor: "bg-purple-400",
+                        borderAccent: "border-l-purple-400",
+                        headerBg: "bg-purple-50",
+                      },
+                    ] as Array<{
+                      key: string;
+                      phase: RoadmapPhase;
+                      icon: string;
+                      badge: string;
+                      badgeBg: string;
+                      connectorColor: string;
+                      borderAccent: string;
+                      headerBg: string;
+                    }>
+                  ).map(({ key, phase, icon, badge, badgeBg, connectorColor, borderAccent, headerBg }, phaseIdx, arr) => {
+                    const isCollapsed = collapsed.has(key);
+                    const doneCount = phase.actions.filter((_, i) => checked.has(`${key}-${i}`)).length;
+                    const allDone = doneCount === phase.actions.length && phase.actions.length > 0;
+
+                    return (
+                      <div key={key} className="relative flex gap-4 md:gap-6">
+                        {/* Timeline spine */}
+                        <div className="flex flex-col items-center flex-shrink-0 w-10">
+                          {/* Dot */}
+                          <div
+                            className={`w-10 h-10 border-4 border-black flex items-center justify-center text-lg font-bold flex-shrink-0 shadow-[3px_3px_0_#000] z-10 ${allDone ? "bg-green-400" : badgeBg}`}
+                          >
+                            {allDone ? "✓" : icon}
+                          </div>
+                          {/* Connector line */}
+                          {phaseIdx < arr.length - 1 && (
+                            <div className={`w-1 flex-1 min-h-6 ${connectorColor} opacity-40`} />
+                          )}
+                        </div>
+
+                        {/* Phase card */}
+                        <div className={`flex-1 mb-6 border-4 border-black shadow-[4px_4px_0_#000] border-l-8 ${borderAccent} overflow-hidden`}>
+                          {/* Phase header — clickable to collapse */}
+                          <button
+                            onClick={() => toggleCollapse(key)}
+                            className={`w-full flex items-center justify-between px-5 py-3.5 ${headerBg} hover:brightness-95 transition-all text-left`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`px-2 py-0.5 border-2 border-black text-xs font-black uppercase tracking-widest ${badgeBg} text-black`}>
+                                {badge}
+                              </span>
+                              <div>
+                                <p className="font-heading font-black uppercase text-base leading-tight">{phase.label}</p>
+                                <p className="text-xs font-semibold text-muted-foreground">{phase.timeframe}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              {/* Progress */}
+                              <span className="text-xs font-black uppercase tracking-wide">
+                                {doneCount}/{phase.actions.length} done
+                              </span>
+                              {/* Chevron */}
+                              <span className={`text-xs font-black transition-transform duration-200 ${isCollapsed ? "rotate-0" : "rotate-180"}`}>
+                                ▼
+                              </span>
+                            </div>
+                          </button>
+
+                          {/* Actions list */}
+                          {!isCollapsed && (
+                            <ul className="divide-y-2 divide-black">
+                              {phase.actions.map((action, actionIdx) => {
+                                const ck = `${key}-${actionIdx}`;
+                                const isDone = checked.has(ck);
+                                const priorityConfig = {
+                                  high:   { label: "HIGH",   cls: "bg-red-400   text-black" },
+                                  medium: { label: "MED",    cls: "bg-yellow-300 text-black" },
+                                  low:    { label: "LOW",    cls: "bg-green-400  text-black" },
+                                }[action.priority] ?? { label: "MED", cls: "bg-yellow-300 text-black" };
+
+                                return (
+                                  <li
+                                    key={actionIdx}
+                                    className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${isDone ? "bg-green-50" : "bg-white hover:bg-gray-50"}`}
+                                  >
+                                    {/* Mark as Done checkbox */}
+                                    <button
+                                      onClick={() => toggleCheck(ck)}
+                                      aria-label={isDone ? "Mark as not done" : "Mark as done"}
+                                      className={`w-6 h-6 border-2 border-black flex-shrink-0 flex items-center justify-center transition-all shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:-translate-y-0.5 ${
+                                        isDone ? "bg-green-400" : "bg-white"
+                                      }`}
+                                    >
+                                      {isDone && <span className="text-xs font-black">✓</span>}
+                                    </button>
+
+                                    {/* Action text */}
+                                    <span
+                                      className={`flex-1 font-semibold text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}
+                                    >
+                                      {action.text}
+                                    </span>
+
+                                    {/* Priority badge */}
+                                    <span className={`flex-shrink-0 text-xs font-black border border-black px-1.5 py-0.5 uppercase tracking-wide ${priorityConfig.cls}`}>
+                                      {priorityConfig.label}
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Progress summary bar */}
+                {(() => {
+                  const total = [roadmap.immediate, roadmap.shortTerm, roadmap.midTerm, roadmap.longTerm]
+                    .flatMap((p) => p.actions).length;
+                  const done = [...checked].length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <div className="mt-2 border-2 border-black p-4 bg-background">
+                      <div className="flex justify-between font-bold text-sm mb-2 uppercase tracking-wide">
+                        <span>Overall Progress</span>
+                        <span className="text-primary">{done}/{total} actions complete — {pct}%</span>
+                      </div>
+                      <div className="w-full h-4 bg-gray-100 border-2 border-black overflow-hidden">
+                        <div
+                          className="h-full bg-primary border-r-2 border-black transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Most Starred Repo */}

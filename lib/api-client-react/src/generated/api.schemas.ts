@@ -100,6 +100,37 @@ export interface AnalysisSummary {
   topLanguages: string[];
 }
 
+export type RoadmapActionPriority =
+  (typeof RoadmapActionPriority)[keyof typeof RoadmapActionPriority];
+
+export const RoadmapActionPriority = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface RoadmapAction {
+  text: string;
+  priority: RoadmapActionPriority;
+  category: string;
+}
+
+export interface RoadmapPhase {
+  label: string;
+  timeframe: string;
+  actions: RoadmapAction[];
+}
+
+export interface Roadmap {
+  username: string;
+  score: number;
+  immediate: RoadmapPhase;
+  shortTerm: RoadmapPhase;
+  midTerm: RoadmapPhase;
+  longTerm: RoadmapPhase;
+  generatedAt: string;
+}
+
 export type PlatformStatsHiringBreakdown = {
   strong_hire: number;
   hire: number;
