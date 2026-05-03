@@ -75,6 +75,8 @@ export default function Home() {
 
   const handleInputFocus = () => {
     if (!watchingSentRef.current) {
+      // Don't bring him back if the user irritated him off this session
+      if (sessionStorage.getItem("ds_watcher_quit") === "1") return;
       watchingSentRef.current = true;
       greeterBus.emit({ type: "watching" });
     }

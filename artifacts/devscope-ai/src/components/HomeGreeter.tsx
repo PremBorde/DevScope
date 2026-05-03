@@ -14,6 +14,8 @@ interface Props {
   quick?:         boolean;
   persistent?:    boolean;
   shouldExit?:    boolean;
+  irritable?:     boolean;
+  onIrritated?:   () => void;
   onDone?:        () => void;
 }
 
@@ -37,6 +39,8 @@ export default function HomeGreeter({
   quick         = false,
   persistent    = false,
   shouldExit    = false,
+  irritable     = false,
+  onIrritated,
   onDone,
 }: Props) {
   const [phase,         setPhase]        = useState<Phase>("entering");
@@ -62,6 +66,7 @@ export default function HomeGreeter({
   // Mini-game
   const lastClickMs = useRef(0);
   const comboRef    = useRef(0);
+  const annoyRef    = useRef(0);
 
   /* Sync display message */
   useEffect(() => { setDisplayMsg(message); }, [message]);
@@ -207,6 +212,45 @@ export default function HomeGreeter({
   const handleClick = () => {
     if (!isClickable || isDragging || didDragRef.current) return;
     didDragRef.current = false;
+
+    /* ── Irritable mode (watcher character) ──────────────── */
+    if (irritable) {
+      annoyRef.current += 1;
+      const n = annoyRef.current;
+
+      const ANNOY: Record<number, string> = {
+        2: "Hey! That tickles! 😅",
+        4: "Cut it out! 🙄",
+        6: "I'm WARNING you! 😠",
+        8: "SERIOUSLY?! STOP! 😡",
+      };
+
+      if (n >= 10) {
+        // Final straw — storm off and never come back
+        setDisplayMsg("That's IT!! I QUIT! 🚪💨");
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+        setTimeout(() => {
+          setPhase("exiting");
+          setTimeout(() => {
+            setPhase("done");
+            onIrritated?.();
+            onDone?.();
+          }, 1000);
+        }, 800);
+        return;
+      }
+
+      if (ANNOY[n]) {
+        setDisplayMsg(ANNOY[n]);
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 450);
+      } else {
+        setIsClickJump(true);
+        setTimeout(() => setIsClickJump(false), 550);
+      }
+      return;
+    }
 
     const now = Date.now();
     if (now - lastClickMs.current < 3000) {

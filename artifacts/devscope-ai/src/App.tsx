@@ -279,7 +279,11 @@ function Router() {
           message={watcherGreeter.msg}
           persistent={true}
           shouldExit={watcherGreeter.shouldExit}
+          irritable={true}
           side="right"
+          onIrritated={() => {
+            sessionStorage.setItem("ds_watcher_quit", "1");
+          }}
           onDone={() => setWatcherGreeter(null)}
         />
       )}
