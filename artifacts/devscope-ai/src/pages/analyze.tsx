@@ -17,7 +17,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ArrowLeft, Star, GitFork, Book, Users, MapPin, Calendar, ExternalLink } from "lucide-react";
+import { ArrowLeft, Star, GitFork, Book, Users, MapPin, Calendar, ExternalLink, Link2, RefreshCw } from "lucide-react";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCountUp,
@@ -157,6 +159,19 @@ export default function Analyze() {
   useStaggerEntrance(insightsRef, ".insight-card", { stagger: 0.12, delay: 0.05 });
 
   const cardHover = useCardHover();
+  const { toast } = useToast();
+
+  usePageTitle(data ? `@${data.profile.login} — Score ${data.scoreBreakdown.total}/100` : username ? `Analyzing @${username}` : "Analyze");
+
+  const handleShareReport = async () => {
+    const reportUrl = `${window.location.origin}${import.meta.env.BASE_URL}report/${username}`.replace(/\/\//g, "/").replace(":/", "://");
+    try {
+      await navigator.clipboard.writeText(reportUrl);
+      toast({ title: "Report link copied!", description: `Share /report/${username} with anyone — no login required.` });
+    } catch {
+      toast({ title: "Copy failed", description: "Please copy the URL manually.", variant: "destructive" });
+    }
+  };
 
   // Auto-generate weekly plan once analysis data is ready
   useEffect(() => {
@@ -241,21 +256,45 @@ export default function Analyze() {
   }
 
   if (error) {
-    const errMsg = (error as { message?: string })?.message ?? "Something went wrong";
+    const errMsg    = (error as { message?: string })?.message ?? "Something went wrong";
+    const isNotFound  = errMsg.toLowerCase().includes("not found");
+    const isRateLimit = errMsg.toLowerCase().includes("rate limit");
     return (
       <PageTransition>
         <div className="flex items-center justify-center min-h-[60vh] px-6">
-          <div className="border-4 border-black bg-white p-12 shadow-[8px_8px_0_#000] text-center max-w-lg w-full">
-            <div className="border-4 border-black bg-red-400 p-4 inline-block mb-6 shadow-[4px_4px_0_#000]">
-              <span className="font-heading font-black text-2xl">Error</span>
+          <div className="border-4 border-black bg-white p-10 md:p-14 shadow-[8px_8px_0_#000] text-center max-w-lg w-full">
+            <div className={`border-4 border-black p-4 inline-block mb-6 shadow-[4px_4px_0_#000] text-4xl ${isNotFound ? "bg-yellow-300" : isRateLimit ? "bg-orange-300" : "bg-red-400"}`}>
+              {isNotFound ? "🔍" : isRateLimit ? "⏱️" : "⚠️"}
             </div>
-            <p className="font-bold text-lg mb-8">{errMsg}</p>
-            <button
-              onClick={() => setLocation("/")}
-              className="border-2 border-black bg-primary px-6 py-3 font-bold uppercase shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:-translate-y-0.5 transition-all"
-            >
-              Try Another
-            </button>
+            <h2 className="font-heading font-black text-2xl uppercase mb-3">
+              {isNotFound ? "User Not Found" : isRateLimit ? "Rate Limited" : "Something Went Wrong"}
+            </h2>
+            <p className="font-medium text-muted-foreground mb-2">
+              {isNotFound
+                ? `GitHub user @${username} doesn't exist or is not accessible.`
+                : isRateLimit
+                ? "GitHub's API rate limit was hit. Please wait a moment and try again."
+                : errMsg}
+            </p>
+            {isRateLimit && (
+              <p className="text-sm font-semibold text-orange-600 mb-6">Rate limits reset every 60 minutes.</p>
+            )}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+              {!isNotFound && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex items-center justify-center gap-2 border-2 border-black bg-primary px-6 py-3 font-bold uppercase shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:-translate-y-0.5 transition-all"
+                >
+                  <RefreshCw className="w-4 h-4" /> Retry
+                </button>
+              )}
+              <button
+                onClick={() => setLocation("/")}
+                className="border-2 border-black bg-white px-6 py-3 font-bold uppercase shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:-translate-y-0.5 transition-all"
+              >
+                Try Another
+              </button>
+            </div>
           </div>
         </div>
       </PageTransition>
@@ -285,12 +324,20 @@ export default function Analyze() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             {cached && (
-              <span className="border-2 border-black bg-muted px-3 py-1 text-xs font-bold uppercase shadow-[2px_2px_0_#000]">
+              <span className="border-2 border-black bg-muted px-3 py-1 text-xs font-bold uppercase shadow-[2px_2px_0_#000] hidden sm:inline">
                 Cached
               </span>
             )}
+            <button
+              onClick={handleShareReport}
+              title="Copy shareable report link"
+              className="flex items-center gap-1.5 border-2 border-black bg-white px-3 py-1.5 text-xs font-bold uppercase shadow-[2px_2px_0_#000] hover:shadow-[4px_4px_0_#000] hover:-translate-y-0.5 transition-all"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Share</span>
+            </button>
             <HiringBadge rec={aiInsights.hiringRecommendation} />
           </div>
         </div>

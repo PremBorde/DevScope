@@ -27,6 +27,7 @@ import {
   useCardHover,
 } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 const SCORE_COLOR = (s: number) =>
   s >= 70 ? "#22c55e" : s >= 50 ? "#FF8D3F" : "#ef4444";
@@ -93,6 +94,8 @@ export default function HistoryPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const cardHover = useCardHover();
+
+  usePageTitle("Analysis History");
 
   const pageRef   = useRef<HTMLDivElement>(null);
   const tableRef  = useRef<HTMLDivElement>(null);

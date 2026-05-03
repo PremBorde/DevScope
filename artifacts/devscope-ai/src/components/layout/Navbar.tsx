@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Github, LogOut, User, History } from "lucide-react";
+import { Search, Github, LogOut, User, History, Scale } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,13 +8,21 @@ import { useAuth } from "@/hooks/useAuth";
 export default function Navbar() {
   const [location, setLocation] = useLocation();
   const { user, isLoading, oauthEnabled, login, logout } = useAuth();
+  const [searchValue, setSearchValue] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchValue(e.target.value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  };
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const username = formData.get("username") as string;
-    if (username.trim()) {
-      setLocation(`/analyze/${username.trim()}`);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const val = searchValue.trim();
+    if (val) {
+      setLocation(`/analyze/${val}`);
+      setSearchValue("");
     }
   };
 
@@ -22,24 +30,27 @@ export default function Navbar() {
     if (user?.username) setLocation(`/analyze/${user.username}`);
   };
 
-  const isActive = (path: string) => location === path;
+  const isActive = (path: string) => location === path || location.startsWith(path + "/");
+
+  const navLinks = [
+    { href: "/dashboard",         label: "Dashboard"                                              },
+    { href: "/dashboard/history", label: "History", icon: <History className="w-3.5 h-3.5" />   },
+    { href: "/compare",           label: "Compare",  icon: <Scale   className="w-3.5 h-3.5" />   },
+  ];
 
   return (
-    <nav className="w-full border-b-4 border-black bg-background px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+    <nav className="w-full border-b-4 border-black bg-background px-4 md:px-6 py-4 flex items-center justify-between sticky top-0 z-50 gap-3">
       {/* Left: logo + nav links */}
-      <div className="flex items-center gap-8">
-        <Link href="/" className="flex items-center gap-2 group">
+      <div className="flex items-center gap-5 min-w-0">
+        <Link href="/" className="flex items-center gap-2 group flex-shrink-0">
           <div className="w-8 h-8 bg-primary border-2 border-black flex items-center justify-center group-hover:-rotate-12 transition-transform duration-200">
             <span className="font-heading font-bold text-lg text-black">DS</span>
           </div>
-          <span className="font-heading font-bold text-xl tracking-tight">DevScope AI</span>
+          <span className="font-heading font-bold text-xl tracking-tight hidden sm:inline">DevScope AI</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
-          {[
-            { href: "/dashboard", label: "Dashboard" },
-            { href: "/dashboard/history", label: "History", icon: <History className="w-3.5 h-3.5" /> },
-          ].map(({ href, label, icon }) => (
+          {navLinks.map(({ href, label, icon }) => (
             <Link
               key={href}
               href={href}
@@ -57,10 +68,12 @@ export default function Navbar() {
       </div>
 
       {/* Right: search + auth */}
-      <div className="flex items-center gap-3">
-        <form onSubmit={handleSearch} className="hidden sm:flex relative w-56 group">
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <form onSubmit={handleSearch} className="hidden sm:flex relative w-52 group">
           <Input
             name="username"
+            value={searchValue}
+            onChange={handleSearchChange}
             placeholder="GitHub username…"
             className="pr-10 border-2 border-black rounded-none shadow-[2px_2px_0_0_#000] focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#000] transition-all bg-white"
           />

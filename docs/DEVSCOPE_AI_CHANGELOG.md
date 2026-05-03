@@ -16,6 +16,7 @@
 8. [Update 8 — AI Improvement Roadmap ("Your Action Plan")](#update-8)
 9. [Update 9 — Score Improvement Tracking ("Your Growth Over Time")](#update-9)
 10. [Update 10 — AI-Powered 30-Day Weekly Improvement Plan](#update-10)
+11. [Update 11 — Final Polish: Share, Compare, Metadata & UX](#update-11)
 
 ---
 
@@ -1145,3 +1146,228 @@ Maps elapsed time since generation to week index 0–3.
 - Collapse/expand works per week card
 - Regenerate button clears cache and fetches a fresh plan
 - No browser console errors
+
+---
+
+<a name="update-11"></a>
+## Update 11 — Final Polish: Share, Compare, Metadata & UX
+
+**Date:** May 3, 2026
+**Type:** Feature + Polish — Production Readiness
+
+---
+
+### Overview
+
+Seven distinct polish areas applied across the entire stack to take DevScope AI from MVP to production-grade SaaS: shareable public report pages, side-by-side profile comparison, dynamic page titles, full SEO metadata, better error handling with contextual UX, a debounced Navbar search input, lazy-loaded pages with Suspense, and a Gemini model fix in the roadmap route.
+
+---
+
+### 1. Shareable Public Report Page (`/report/:username`)
+
+**New file:** `artifacts/devscope-ai/src/pages/report.tsx`
+
+A clean, minimal public view of any analysis — no login required. Key design decisions:
+- Reuses the same `/api/analyze/:username` endpoint and React Query cache, so if the user already viewed the analysis it loads instantly
+- Sticky header bar with "Copy Link" and "Full Analysis" CTAs — always visible during scroll
+- Profile card: avatar, name, GitHub link, location, followers, account year, hiring badge, score in a separate call-out box
+- Quick stats strip: public repos, total stars, total forks
+- Score breakdown with linear progress bars (repoQuality/30, activityConsistency/25, techDiversity/20, popularity/15, completeness/10)
+- Executive summary + strengths list (green checkmarks)
+- Weaknesses (red) + numbered suggestions (blue) side-by-side grid
+- Footer CTA bar: black background, orange shadow, "Share" and "Full Analysis" buttons
+- Analyzed timestamp at the bottom
+- Contextual error handling: 🔍 yellow card for 404, ⚠️ red for generic, with Retry + Try Another buttons
+- `usePageTitle` sets the browser tab to `"{Name} — GitHub Report | DevScope AI"`
+
+**Route added to App.tsx:**
+```
+<Route path="/report/:username" component={Report} />
+```
+
+---
+
+### 2. Side-by-Side Profile Comparison (`/compare` and `/compare/:userA/:userB`)
+
+**New file:** `artifacts/devscope-ai/src/pages/compare.tsx`
+
+Persistent form at the top (inputs pre-filled from URL params) + comparison table below when both usernames are present. Two `useAnalyzeGithubUser` queries run in parallel.
+
+**Comparison table rows:**
+| Row | Metric | Winner highlight |
+|-----|--------|-----------------|
+| 1 | Overall Score (/100) | Bold, 4xl, green if winning |
+| 2 | Repo Quality (/30) | ▲ arrow on winning side |
+| 3 | Activity (/25) | |
+| 4 | Tech Diversity (/20) | |
+| 5 | Popularity (/15) | |
+| 6 | Completeness (/10) | |
+| 7 | Public Repos | |
+| 8 | Total Stars | |
+
+**Verdict generator (client-side):**
+```ts
+function generateVerdict(a, aName, b, bName): string
+```
+- If `|aScore - bScore| < 5` → "closely matched" message with metric advantages listed
+- Otherwise → clear winner statement with top 2 advantage categories + hiring rec comparison
+
+**AI Summary section:** Two side-by-side summary cards with the top 2 strengths listed under each.
+**CTA row:** "Full Analysis: @userA" and "Full Analysis: @userB" buttons at the bottom.
+**Loading:** Per-column skeleton placeholders while each query loads independently.
+
+**Routes added:**
+```
+<Route path="/compare"               component={Compare} />
+<Route path="/compare/:userA/:userB" component={Compare} />
+```
+
+---
+
+### 3. Dynamic Page Titles — `usePageTitle` Hook
+
+**New file:** `artifacts/devscope-ai/src/hooks/usePageTitle.ts`
+
+```ts
+export function usePageTitle(title?: string) {
+  useEffect(() => {
+    document.title = title ? `${title} | DevScope AI` : "DevScope AI";
+    return () => { document.title = prev; }; // cleanup on unmount
+  }, [title]);
+}
+```
+
+Applied across all pages:
+| Page | Title |
+|------|-------|
+| Home | `Analyze GitHub Like a Recruiter \| DevScope AI` |
+| Analyze (loading) | `Analyzing @username \| DevScope AI` |
+| Analyze (loaded) | `@username — Score XX/100 \| DevScope AI` |
+| Dashboard | `Dashboard \| DevScope AI` |
+| History | `Analysis History \| DevScope AI` |
+| Report | `Name — GitHub Report \| DevScope AI` |
+| Compare | `userA vs userB \| DevScope AI` |
+
+---
+
+### 4. SEO Metadata & Open Graph Tags
+
+**File:** `artifacts/devscope-ai/index.html`
+
+Added:
+```html
+<meta name="description" content="..." />
+<meta name="keywords" content="GitHub profile analyzer, developer scoring, ..." />
+<meta name="theme-color" content="#FF8D3F" />
+<meta property="og:type"        content="website" />
+<meta property="og:title"       content="DevScope AI — Analyze GitHub Like a Recruiter" />
+<meta property="og:description" content="Brutally honest 0-100 GitHub scoring..." />
+<meta property="og:image"       content="/og-image.png" />
+<meta property="og:url"         content="https://devscope.ai" />
+<meta property="og:site_name"   content="DevScope AI" />
+<meta name="twitter:card"        content="summary_large_image" />
+<meta name="twitter:title"       content="..." />
+<meta name="twitter:description" content="..." />
+<meta name="twitter:image"       content="/og-image.png" />
+```
+
+---
+
+### 5. Improved Error Handling in Analyze Page
+
+**File:** `artifacts/devscope-ai/src/pages/analyze.tsx`
+
+Replaced generic "Error" card with contextual error UI:
+
+| Error type | Indicator | Heading | Description |
+|-----------|-----------|---------|-------------|
+| 404 (not found) | 🔍 yellow card | "User Not Found" | "@username doesn't exist or is not accessible." |
+| 429 (rate limit) | ⏱️ orange card | "Rate Limited" | "Rate limits reset every 60 minutes." |
+| Other/500 | ⚠️ red card | "Something Went Wrong" | Shows raw error message |
+
+**Action buttons:** 404 → "Try Another" only. Rate limit / 500 → "Retry" (reloads page) + "Try Another".
+
+Detection logic:
+```ts
+const isNotFound  = errMsg.toLowerCase().includes("not found");
+const isRateLimit = errMsg.toLowerCase().includes("rate limit");
+```
+
+---
+
+### 6. Share Report Button in Analyze Header
+
+**File:** `artifacts/devscope-ai/src/pages/analyze.tsx`
+
+Added a "Share" button (with Link2 icon) in the sticky header between the Cached badge and HiringBadge. Clicking it:
+1. Constructs the `/report/:username` URL using `window.location.origin + BASE_URL + report/username`
+2. Copies it to the clipboard using `navigator.clipboard.writeText()`
+3. Shows a toast: "Report link copied! — Share /report/username with anyone — no login required."
+
+---
+
+### 7. Navbar Improvements
+
+**File:** `artifacts/devscope-ai/src/components/layout/Navbar.tsx`
+
+- Added "Compare" nav link with `Scale` icon → `/compare`
+- Debounced search input: controlled `value` state with `useRef` debounce timer; clears on new keystrokes; navigates only on form submit (Enter or click)
+- Search input clears after navigation to prevent stale value
+- Active state detection uses `startsWith` for nested routes (e.g., `/dashboard/history` stays active under `/dashboard`)
+
+---
+
+### 8. Lazy-Loaded Pages with React Suspense
+
+**File:** `artifacts/devscope-ai/src/App.tsx`
+
+All pages now use `React.lazy()` + `<Suspense fallback={<PageLoader />}>`:
+```tsx
+const Home      = lazy(() => import("@/pages/home"));
+const Analyze   = lazy(() => import("@/pages/analyze"));
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const History   = lazy(() => import("@/pages/history"));
+const Report    = lazy(() => import("@/pages/report"));
+const Compare   = lazy(() => import("@/pages/compare"));
+const NotFound  = lazy(() => import("@/pages/not-found"));
+```
+
+`PageLoader` fallback shows 3 skeleton cards to prevent layout shift. React Query `defaultOptions` set globally: `staleTime: 5min`, `refetchOnWindowFocus: false`.
+
+---
+
+### 9. Gemini Model Fix in Roadmap Route
+
+**File:** `artifacts/api-server/src/routes/ai.ts`
+
+Changed unsupported model `"gemini-2.0-flash"` → `"gemini-3-flash-preview"` (matches the working model used in the main analyze route). This was causing all weekly roadmap generations to fall back to the static fallback response.
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/hooks/usePageTitle.ts` | **New** — dynamic `document.title` hook |
+| `src/pages/report.tsx` | **New** — public shareable report page |
+| `src/pages/compare.tsx` | **New** — side-by-side comparison page |
+| `src/App.tsx` | Routes for /report, /compare; lazy-load all pages; Suspense; QueryClient defaultOptions |
+| `src/components/layout/Navbar.tsx` | "Compare" link; controlled + debounced search input |
+| `index.html` | Full meta/OG/Twitter/theme-color tags |
+| `src/pages/analyze.tsx` | usePageTitle; Share button; contextual error UI |
+| `src/pages/home.tsx` | usePageTitle call |
+| `src/pages/dashboard.tsx` | usePageTitle call |
+| `src/pages/history.tsx` | usePageTitle call |
+| `artifacts/api-server/src/routes/ai.ts` | Gemini model fix: `gemini-2.0-flash` → `gemini-3-flash-preview` |
+
+---
+
+### Validation
+
+- TypeScript: zero errors (`pnpm --filter @workspace/devscope-ai exec tsc --noEmit`)
+- No browser console errors
+- All 7 routes load and display correctly
+- Report page shows share link copy toast on click
+- Compare page shows green ▲ on winning metrics and generates verdict
+- Error states correctly distinguish 404 / 429 / 500
+- Dynamic page titles update correctly on route change

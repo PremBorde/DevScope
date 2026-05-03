@@ -9,6 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useScrollReveal, useStaggerEntrance, useCardHover } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 const Hero3D = React.lazy(() => import("@/components/home/Hero3D"));
 
@@ -26,6 +27,7 @@ export default function Home() {
     if (user?.username) setUsername(user.username);
   }, [user?.username]);
 
+  usePageTitle("Analyze GitHub Like a Recruiter");
   useScrollReveal(pageRef, ".reveal");
   useStaggerEntrance(featuresRef, ".feature-card", { delay: 0.1, stagger: 0.12 });
 

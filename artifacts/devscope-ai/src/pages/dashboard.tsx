@@ -31,6 +31,7 @@ import {
   useCardHover,
 } from "@/hooks/useAnimations";
 import PageTransition from "@/components/layout/PageTransition";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 function HiringBadge({ rec }: { rec: string }) {
   const map: Record<string, { label: string; bg: string }> = {
@@ -119,6 +120,7 @@ export default function Dashboard() {
 
   const cardHover = useCardHover();
 
+  usePageTitle("Dashboard");
   useStaggerEntrance(statsGridRef, ".stat-card", { stagger: 0.1 });
   useScrollReveal(pageRef, ".reveal");
   useStaggerEntrance(chartsRef, ".chart-card", { stagger: 0.15, delay: 0.1 });
