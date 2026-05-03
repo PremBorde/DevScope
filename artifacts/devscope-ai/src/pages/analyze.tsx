@@ -1,13 +1,15 @@
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
 import {
   useAnalyzeGithubUser,
   getAnalyzeGithubUserQueryKey,
   useGetAiRoadmap,
   getGetAiRoadmapQueryKey,
+  usePostAiRoadmap,
 } from "@workspace/api-client-react";
-import type { RoadmapPhase } from "@workspace/api-client-react";
+import type { RoadmapPhase, WeeklyRoadmap } from "@workspace/api-client-react";
 import {
   PieChart,
   Pie,
@@ -86,6 +88,32 @@ export default function Analyze() {
   const breakdownRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const insightsRef = useRef<HTMLDivElement>(null);
+  const weekPlanRef = useRef<HTMLDivElement>(null);
+
+  // Weekly roadmap state
+  const [weekChecked, setWeekChecked]     = useState<Set<string>>(new Set()); // "weekN-taskIdx"
+  const [weekCollapsed, setWeekCollapsed] = useState<Set<string>>(new Set()); // "week1"..."week4"
+
+  const {
+    mutate: generateWeeklyPlan,
+    data: weeklyPlan,
+    isPending: weekPlanPending,
+    reset: resetWeeklyPlan,
+  } = usePostAiRoadmap();
+
+  const toggleWeekCheck = (key: string) =>
+    setWeekChecked((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  const toggleWeekCollapse = (key: string) =>
+    setWeekCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   const { data, isLoading, error } = useAnalyzeGithubUser(username, {
     query: {
@@ -129,6 +157,43 @@ export default function Analyze() {
   useStaggerEntrance(insightsRef, ".insight-card", { stagger: 0.12, delay: 0.05 });
 
   const cardHover = useCardHover();
+
+  // Auto-generate weekly plan once analysis data is ready
+  useEffect(() => {
+    if (data && !weeklyPlan && !weekPlanPending) {
+      generateWeeklyPlan({
+        data: {
+          username,
+          score: data.scoreBreakdown.total,
+          breakdown: data.scoreBreakdown as unknown as Record<string, number>,
+          weaknesses: data.aiInsights.weaknesses,
+          strengths: data.aiInsights.strengths,
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // GSAP stagger cards when weeklyPlan data arrives
+  useEffect(() => {
+    if (!weeklyPlan || !weekPlanRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        weekPlanRef.current!.querySelectorAll(".week-card"),
+        { y: 44, opacity: 0, scale: 0.95 },
+        {
+          y: 0,
+          opacity: 1,
+          scale: 1,
+          duration: 0.5,
+          stagger: 0.13,
+          ease: "power3.out",
+          clearProps: "scale,opacity",
+        }
+      );
+    }, weekPlanRef);
+    return () => ctx.revert();
+  }, [weeklyPlan]);
 
   if (!username) {
     return (
@@ -664,6 +729,207 @@ export default function Analyze() {
               </div>
             )}
           </div>
+
+          {/* ── Your 30-Day Improvement Plan ────────────────────────── */}
+          {(() => {
+            const weeks: Array<{ key: keyof WeeklyRoadmap & `week${number}`; label: string; emoji: string; accentBg: string; accentBorder: string; headerBg: string; badgeBg: string }> = [
+              { key: "week1", label: "Week 1", emoji: "🔥", accentBg: "bg-red-400",    accentBorder: "border-l-red-400",    headerBg: "bg-red-50",    badgeBg: "bg-red-400" },
+              { key: "week2", label: "Week 2", emoji: "🚀", accentBg: "bg-primary",    accentBorder: "border-l-primary",    headerBg: "bg-orange-50", badgeBg: "bg-primary" },
+              { key: "week3", label: "Week 3", emoji: "✅", accentBg: "bg-blue-400",   accentBorder: "border-l-blue-400",   headerBg: "bg-blue-50",   badgeBg: "bg-blue-400" },
+              { key: "week4", label: "Week 4", emoji: "⭐", accentBg: "bg-purple-400", accentBorder: "border-l-purple-400", headerBg: "bg-purple-50", badgeBg: "bg-purple-400" },
+            ];
+
+            // Determine current week from generatedAt
+            const currentWeekIdx = weeklyPlan
+              ? Math.min(Math.floor((Date.now() - new Date(weeklyPlan.generatedAt).getTime()) / (7 * 24 * 60 * 60 * 1000)), 3)
+              : 0;
+
+            return (
+              <div className="reveal border-4 border-black bg-white shadow-[6px_6px_0_#000]">
+                {/* Section header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-7 pt-7 pb-5 border-b-2 border-black">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-widest text-primary border-b-2 border-primary pb-0.5">Gemini AI</span>
+                    <h2 className="font-heading font-black uppercase text-2xl mt-1">📅 Your 30-Day Improvement Plan</h2>
+                    <p className="text-sm text-muted-foreground font-medium mt-0.5">
+                      Brutally specific weekly tasks, personalized for @{username}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      resetWeeklyPlan();
+                      generateWeeklyPlan({
+                        data: {
+                          username,
+                          score: data?.scoreBreakdown.total ?? 0,
+                          breakdown: data?.scoreBreakdown as unknown as Record<string, number>,
+                          weaknesses: data?.aiInsights.weaknesses ?? [],
+                          strengths: data?.aiInsights.strengths ?? [],
+                          regenerate: true,
+                        },
+                      });
+                    }}
+                    disabled={weekPlanPending}
+                    className="flex-shrink-0 flex items-center gap-2 border-2 border-black bg-white px-5 py-2.5 font-black uppercase text-sm shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0_#000]"
+                  >
+                    {weekPlanPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-black border-t-primary rounded-full animate-spin" />
+                        Generating…
+                      </>
+                    ) : (
+                      <>🔄 Regenerate</>
+                    )}
+                  </button>
+                </div>
+
+                <div className="px-7 pb-7 pt-5">
+                  {weekPlanPending ? (
+                    /* Loading skeleton */
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="w-6 h-6 border-2 border-black border-t-primary rounded-full animate-spin flex-shrink-0" />
+                        <p className="font-bold text-sm uppercase tracking-wide text-muted-foreground">
+                          Gemini AI is crafting your personalised plan…
+                        </p>
+                      </div>
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-24 border-4 border-black bg-gray-50 animate-pulse shadow-[4px_4px_0_#000]" style={{ opacity: 1 - i * 0.15 }} />
+                      ))}
+                    </div>
+                  ) : weeklyPlan ? (
+                    /* Week cards */
+                    <div ref={weekPlanRef} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {weeks.map(({ key, label, emoji, accentBorder, headerBg, badgeBg }, weekIdx) => {
+                        const tasks: string[] = (weeklyPlan[key] as string[]) ?? [];
+                        const isCurrentWeek = weekIdx === currentWeekIdx;
+                        const isCollapsed   = weekCollapsed.has(key);
+                        const doneCount     = tasks.filter((_, ti) => weekChecked.has(`${key}-${ti}`)).length;
+                        const allDone       = doneCount === tasks.length && tasks.length > 0;
+
+                        return (
+                          <div
+                            key={key}
+                            className={`week-card border-4 border-black shadow-[4px_4px_0_#000] border-l-8 ${accentBorder} overflow-hidden will-change-transform relative`}
+                            onMouseEnter={cardHover.onMouseEnter}
+                            onMouseLeave={cardHover.onMouseLeave}
+                            style={{ opacity: 0 }}
+                          >
+                            {/* Current-week badge */}
+                            {isCurrentWeek && (
+                              <div className="absolute top-3 right-3 px-2 py-0.5 bg-black text-white text-xs font-black uppercase tracking-widest border border-white z-10">
+                                Current
+                              </div>
+                            )}
+
+                            {/* Card header — clickable to collapse */}
+                            <button
+                              onClick={() => toggleWeekCollapse(key)}
+                              className={`w-full flex items-center justify-between px-5 py-4 ${isCurrentWeek ? "bg-black text-white" : headerBg} hover:brightness-95 transition-all text-left`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={`w-9 h-9 border-2 ${isCurrentWeek ? "border-white bg-white text-black" : "border-black " + badgeBg} flex items-center justify-center text-lg font-black flex-shrink-0`}>
+                                  {allDone ? "✓" : emoji}
+                                </span>
+                                <div>
+                                  <p className={`font-heading font-black uppercase text-lg leading-tight ${isCurrentWeek ? "text-white" : "text-black"}`}>
+                                    {label}
+                                  </p>
+                                  <p className={`text-xs font-semibold ${isCurrentWeek ? "text-white/70" : "text-muted-foreground"}`}>
+                                    {doneCount}/{tasks.length} tasks done
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`text-xs font-black transition-transform duration-200 ${isCurrentWeek ? "text-white" : ""} ${isCollapsed ? "rotate-0" : "rotate-180"}`}>
+                                ▼
+                              </span>
+                            </button>
+
+                            {/* Task list */}
+                            {!isCollapsed && (
+                              <ul className="divide-y-2 divide-black">
+                                {tasks.map((task, ti) => {
+                                  const ck     = `${key}-${ti}`;
+                                  const isDone = weekChecked.has(ck);
+                                  return (
+                                    <li
+                                      key={ti}
+                                      className={`flex items-start gap-4 px-5 py-4 transition-colors ${isDone ? "bg-green-50" : "bg-white hover:bg-gray-50"}`}
+                                    >
+                                      {/* Checkbox */}
+                                      <button
+                                        onClick={() => toggleWeekCheck(ck)}
+                                        aria-label={isDone ? "Mark incomplete" : "Mark complete"}
+                                        className={`mt-0.5 w-6 h-6 border-2 border-black flex-shrink-0 flex items-center justify-center transition-all shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:-translate-y-0.5 ${isDone ? "bg-green-400" : "bg-white"}`}
+                                      >
+                                        {isDone && <span className="text-xs font-black">✓</span>}
+                                      </button>
+                                      {/* Task text */}
+                                      <span className={`flex-1 font-semibold text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>
+                                        {task}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+
+                            {/* Mini progress bar */}
+                            <div className="w-full h-1.5 bg-gray-100">
+                              <div
+                                className="h-full bg-green-400 transition-all duration-500"
+                                style={{ width: tasks.length > 0 ? `${(doneCount / tasks.length) * 100}%` : "0%" }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-10 text-center text-muted-foreground font-medium">
+                      <p>Could not generate plan. Try regenerating.</p>
+                    </div>
+                  )}
+
+                  {/* Overall progress */}
+                  {weeklyPlan && (() => {
+                    const allTasks   = weeks.flatMap(({ key }) => (weeklyPlan[key] as string[]) ?? []);
+                    const totalCount = allTasks.length;
+                    const doneCount  = weeks.flatMap(({ key }, wi) =>
+                      ((weeklyPlan[key] as string[]) ?? []).map((_, ti) => `week${wi + 1}-${ti}`)
+                    ).filter((ck) => weekChecked.has(ck)).length;
+                    const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+                    return (
+                      <div className="mt-5 border-2 border-black p-4 bg-background">
+                        <div className="flex justify-between font-bold text-sm mb-2 uppercase tracking-wide">
+                          <span>30-Day Progress</span>
+                          <span className="text-primary">{doneCount}/{totalCount} tasks — {pct}%</span>
+                        </div>
+                        <div className="w-full h-4 bg-gray-100 border-2 border-black overflow-hidden">
+                          <div
+                            className="h-full bg-primary border-r-2 border-black transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        {pct === 100 && (
+                          <p className="text-center font-black text-green-600 uppercase tracking-widest text-xs mt-2">
+                            🎉 30-Day plan complete! Time to re-analyze.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {weeklyPlan && (
+                    <p className="text-xs text-muted-foreground text-right mt-3 font-medium">
+                      Generated {new Date(weeklyPlan.generatedAt).toLocaleString()}
+                      {weeklyPlan.cached && " (cached)"}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Most Starred Repo */}
           {repoStats.mostStarredRepo && (

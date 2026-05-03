@@ -15,6 +15,7 @@
 7. [Update 7 — User History Tracking + Growth Over Time Chart](#update-7)
 8. [Update 8 — AI Improvement Roadmap ("Your Action Plan")](#update-8)
 9. [Update 9 — Score Improvement Tracking ("Your Growth Over Time")](#update-9)
+10. [Update 10 — AI-Powered 30-Day Weekly Improvement Plan](#update-10)
 
 ---
 
@@ -1028,4 +1029,119 @@ Added as a full-width Neobrutalist card between the Charts Row and the Recent An
 - `curl http://localhost:80/api/analyses/trend/torvalds` → `[{date,score}, ...]` 200 in 29ms
 - Frontend TS: zero errors (`tsc --noEmit`)
 - Dashboard renders with empty-state placeholder, full chart on username entry, "Overall Change" badge
+- No browser console errors
+
+---
+
+<a name="update-10"></a>
+## Update 10 — AI-Powered 30-Day Weekly Improvement Plan
+
+**Date:** May 3, 2026
+**Type:** Feature — Gemini AI Weekly Roadmap
+
+---
+
+### Overview
+
+Added a "Your 30-Day Improvement Plan" section to every analysis page. Gemini AI generates a concrete 4-week plan (3 specific tasks per week), personalised to the user's score breakdown, strengths, and weaknesses. Users can track task completion with interactive checkboxes, collapse/expand individual weeks, see which week is currently active, and regenerate a fresh plan on demand. Results are Redis-cached for 7 days.
+
+---
+
+### What Was Built
+
+#### Backend — `POST /api/ai/roadmap`
+
+| Detail | Value |
+|---|---|
+| Route file | `artifacts/api-server/src/routes/ai.ts` |
+| Registered at | `/ai` prefix in `routes/index.ts` |
+| Request schema | `WeeklyRoadmapRequest` — `{username, score, breakdown?, weaknesses?, strengths?, regenerate?}` |
+| Response schema | `WeeklyRoadmap` — `{username, week1[], week2[], week3[], week4[], generatedAt, cached}` |
+| AI model | Gemini 2.0 Flash via `@workspace/integrations-gemini-ai` |
+| Cache key | `weekly-roadmap:{username}` — 7-day TTL in Redis |
+| Cache bypass | `regenerate: true` in request body skips cache and refreshes |
+
+**Gemini prompt strategy:** Receives the full score breakdown object, weakness list, and strength list. Returns strict JSON with exactly 3 highly specific, actionable tasks per week — Week 1 (quick wins / foundations), Week 2 (testing/quality), Week 3 (polish/sharing), Week 4 (advanced/specialisation).
+
+#### OpenAPI Contract (`lib/api-spec/openapi.yaml`)
+
+Two new schemas:
+
+```yaml
+WeeklyRoadmapRequest:
+  username, score, breakdown (map), weaknesses[], strengths[], regenerate?
+
+WeeklyRoadmap:
+  username, week1[], week2[], week3[], week4[], generatedAt, cached
+```
+
+New endpoint:
+
+```yaml
+POST /ai/roadmap → operationId: postAiRoadmap
+```
+
+#### Codegen — `lib/api-client-react`
+
+Orval generated:
+- `usePostAiRoadmap` — React Query `useMutation` hook
+- `WeeklyRoadmap`, `WeeklyRoadmapRequest` TypeScript types
+
+#### Frontend — `artifacts/devscope-ai/src/pages/analyze.tsx`
+
+**New imports:**
+- `gsap` (direct import for stagger-on-data effect)
+- `usePostAiRoadmap`, `WeeklyRoadmap` from `@workspace/api-client-react`
+
+**New state:**
+- `weekChecked: Set<string>` — tracks completed task keys (`"week1-0"`, `"week2-2"`, etc.)
+- `weekCollapsed: Set<string>` — tracks which week cards are collapsed
+
+**Auto-trigger useEffect:** Fires once when analysis `data` loads → calls `generateWeeklyPlan` with score, breakdown, weaknesses, and strengths.
+
+**GSAP stagger useEffect:** Fires when `weeklyPlan` data arrives → staggers 4 `.week-card` elements in with `fromTo(y:44→0, opacity:0→1, scale:0.95→1)` at 130ms stagger, `power3.out`.
+
+**"Current week" logic:**
+```ts
+Math.min(Math.floor((Date.now() - new Date(weeklyPlan.generatedAt).getTime()) / (7 * 24 * 60 * 60 * 1000)), 3)
+```
+Maps elapsed time since generation to week index 0–3.
+
+**UI components:**
+- Section header with "Gemini AI" badge, title, subtitle, and Regenerate button
+- Loading skeleton — 4 animated placeholder cards with shimmer
+- 2-column responsive grid of 4 week cards:
+  - Colour-coded left border + header: red (Week 1), orange (Week 2), blue (Week 3), purple (Week 4)
+  - Current-week card has black header + "CURRENT" badge
+  - Collapse/expand chevron toggle on card header
+  - Per-task checkboxes with green fill + strikethrough on completion
+  - Mini progress bar at card bottom
+- Overall 30-day progress bar: `X/12 tasks — Y%`
+- Completion celebration message when all 12 tasks are checked
+- Generated timestamp + "(cached)" indicator
+
+---
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `artifacts/api-server/src/routes/ai.ts` | New file — POST /ai/roadmap route |
+| `artifacts/api-server/src/routes/index.ts` | Registered `/ai` router |
+| `lib/api-spec/openapi.yaml` | Added `WeeklyRoadmapRequest`, `WeeklyRoadmap` schemas + endpoint |
+| `lib/api-client-react/src/generated/api.ts` | Codegen — `usePostAiRoadmap`, types |
+| `lib/api-client-react/src/generated/api.schemas.ts` | Codegen — Zod schemas |
+| `artifacts/devscope-ai/src/pages/analyze.tsx` | Added imports, state, effects, full JSX section |
+
+---
+
+### Verified
+
+- `curl -X POST localhost:80/api/ai/roadmap -d '{"username":"torvalds","score":85,...}'` → structured `{week1,week2,week3,week4}` JSON, 200 OK
+- Frontend TypeScript: zero errors (`tsc --noEmit`)
+- Week 1 highlighted "CURRENT" with black header on fresh analysis
+- GSAP stagger entrance animation plays on plan load
+- Checkboxes toggle correctly; progress bars update live
+- Collapse/expand works per week card
+- Regenerate button clears cache and fetches a fresh plan
 - No browser console errors

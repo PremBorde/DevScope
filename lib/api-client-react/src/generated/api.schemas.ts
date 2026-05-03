@@ -100,6 +100,29 @@ export interface AnalysisSummary {
   topLanguages: string[];
 }
 
+export type WeeklyRoadmapRequestBreakdown = { [key: string]: number };
+
+export interface WeeklyRoadmapRequest {
+  username: string;
+  score: number;
+  breakdown?: WeeklyRoadmapRequestBreakdown;
+  weaknesses?: string[];
+  strengths?: string[];
+  /** Force regeneration even if a cached roadmap exists */
+  regenerate?: boolean;
+}
+
+export interface WeeklyRoadmap {
+  username: string;
+  score: number;
+  week1: string[];
+  week2: string[];
+  week3: string[];
+  week4: string[];
+  generatedAt: string;
+  cached: boolean;
+}
+
 export interface ScoreTrendPoint {
   /** ISO date string (YYYY-MM-DD) */
   date: string;

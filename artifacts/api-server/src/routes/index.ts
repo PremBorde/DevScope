@@ -6,6 +6,7 @@ import debugRouter from "./debug";
 import authRouter from "./auth";
 import roadmapRouter from "./roadmap";
 import analysesRouter from "./analyses";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use("/analyze", analyzeRouter);
 router.use("/history", historyRouter);
 router.use("/roadmap", roadmapRouter);
 router.use("/analyses", analysesRouter);
+router.use("/ai", aiRouter);
 router.use("/debug-score", debugRouter);
 router.use("/stats", async (req, res) => {
   res.redirect(307, "/api/history/stats/platform");

@@ -24,3 +24,6 @@ export * from "./roadmapActionPriority";
 export * from "./roadmapPhase";
 export * from "./scoreBreakdown";
 export * from "./scoreTrendPoint";
+export * from "./weeklyRoadmap";
+export * from "./weeklyRoadmapRequest";
+export * from "./weeklyRoadmapRequestBreakdown";

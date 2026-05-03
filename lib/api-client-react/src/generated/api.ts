@@ -5,10 +5,13 @@
  * DevScope AI API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
@@ -22,10 +25,12 @@ import type {
   PlatformStats,
   Roadmap,
   ScoreTrendPoint,
+  WeeklyRoadmap,
+  WeeklyRoadmapRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -389,6 +394,93 @@ export function useGetUserAnalysisHistory<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Calls Gemini AI to produce a personalised weekly action plan based on score data. Results are cached for 7 days; pass regenerate:true to force a fresh generation.
+ * @summary Generate a 4-week improvement roadmap
+ */
+export const getPostAiRoadmapUrl = () => {
+  return `/api/ai/roadmap`;
+};
+
+export const postAiRoadmap = async (
+  weeklyRoadmapRequest: WeeklyRoadmapRequest,
+  options?: RequestInit,
+): Promise<WeeklyRoadmap> => {
+  return customFetch<WeeklyRoadmap>(getPostAiRoadmapUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(weeklyRoadmapRequest),
+  });
+};
+
+export const getPostAiRoadmapMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postAiRoadmap>>,
+    TError,
+    { data: BodyType<WeeklyRoadmapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postAiRoadmap>>,
+  TError,
+  { data: BodyType<WeeklyRoadmapRequest> },
+  TContext
+> => {
+  const mutationKey = ["postAiRoadmap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postAiRoadmap>>,
+    { data: BodyType<WeeklyRoadmapRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postAiRoadmap(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostAiRoadmapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postAiRoadmap>>
+>;
+export type PostAiRoadmapMutationBody = BodyType<WeeklyRoadmapRequest>;
+export type PostAiRoadmapMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate a 4-week improvement roadmap
+ */
+export const usePostAiRoadmap = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postAiRoadmap>>,
+    TError,
+    { data: BodyType<WeeklyRoadmapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof postAiRoadmap>>,
+  TError,
+  { data: BodyType<WeeklyRoadmapRequest> },
+  TContext
+> => {
+  return useMutation(getPostAiRoadmapMutationOptions(options));
+};
 
 /**
  * Returns all historical scores for a username sorted chronologically (oldest first)

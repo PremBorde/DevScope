@@ -16,6 +16,8 @@ tags:
     description: Analysis history
   - name: analyses
     description: Score trend and analysis data
+  - name: ai
+    description: AI-powered generation endpoints
 paths:
   /healthz:
     get:
@@ -114,6 +116,38 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AnalysisSummary"
+
+  /ai/roadmap:
+    post:
+      operationId: postAiRoadmap
+      tags: [ai]
+      summary: Generate a 4-week improvement roadmap
+      description: Calls Gemini AI to produce a personalised weekly action plan based on score data. Results are cached for 7 days; pass regenerate:true to force a fresh generation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyRoadmapRequest"
+      responses:
+        "200":
+          description: 4-week roadmap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyRoadmap"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /analyses/trend/{username}:
     get:
@@ -402,6 +436,69 @@ components:
         - hiringRecommendation
         - analyzedAt
         - topLanguages
+
+    WeeklyRoadmapRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        score:
+          type: number
+        breakdown:
+          type: object
+          additionalProperties:
+            type: number
+        weaknesses:
+          type: array
+          items:
+            type: string
+        strengths:
+          type: array
+          items:
+            type: string
+        regenerate:
+          type: boolean
+          description: Force regeneration even if a cached roadmap exists
+      required:
+        - username
+        - score
+
+    WeeklyRoadmap:
+      type: object
+      properties:
+        username:
+          type: string
+        score:
+          type: number
+        week1:
+          type: array
+          items:
+            type: string
+        week2:
+          type: array
+          items:
+            type: string
+        week3:
+          type: array
+          items:
+            type: string
+        week4:
+          type: array
+          items:
+            type: string
+        generatedAt:
+          type: string
+        cached:
+          type: boolean
+      required:
+        - username
+        - score
+        - week1
+        - week2
+        - week3
+        - week4
+        - generatedAt
+        - cached
 
     ScoreTrendPoint:
       type: object

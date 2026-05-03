@@ -127,6 +127,33 @@ export const GetUserAnalysisHistoryResponse = zod.array(
 );
 
 /**
+ * Calls Gemini AI to produce a personalised weekly action plan based on score data. Results are cached for 7 days; pass regenerate:true to force a fresh generation.
+ * @summary Generate a 4-week improvement roadmap
+ */
+export const PostAiRoadmapBody = zod.object({
+  username: zod.string(),
+  score: zod.number(),
+  breakdown: zod.record(zod.string(), zod.number()).optional(),
+  weaknesses: zod.array(zod.string()).optional(),
+  strengths: zod.array(zod.string()).optional(),
+  regenerate: zod
+    .boolean()
+    .optional()
+    .describe("Force regeneration even if a cached roadmap exists"),
+});
+
+export const PostAiRoadmapResponse = zod.object({
+  username: zod.string(),
+  score: zod.number(),
+  week1: zod.array(zod.string()),
+  week2: zod.array(zod.string()),
+  week3: zod.array(zod.string()),
+  week4: zod.array(zod.string()),
+  generatedAt: zod.string(),
+  cached: zod.boolean(),
+});
+
+/**
  * Returns all historical scores for a username sorted chronologically (oldest first)
  * @summary Get score trend for a GitHub user
  */
