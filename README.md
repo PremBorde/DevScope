@@ -4,8 +4,6 @@
 
 DevScope AI is a production-grade, Neobrutalist SaaS application that analyzes GitHub profiles like a technical recruiter. It provides AI-powered scoring (0-100), Gemini AI insights, hiring recommendations, shareable public reports, side-by-side developer comparisons, and a 30-day actionable improvement roadmap.
 
-![DevScope UI Preview](docs/preview.png) *(Preview placeholder)*
-
 ## ✨ Key Features
 
 - **GitHub Profile Scoring (0-100):** Deterministic scoring across 5 key categories (Repo Quality, Activity, Tech Diversity, Popularity, and Completeness).
