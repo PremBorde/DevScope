@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "build:api": "npx --yes pnpm@9 install --frozen-lockfile && npx --yes pnpm@9 --filter @workspace/api-server run build",
-    "start:api": "npx --yes pnpm@9 --filter @workspace/api-server run start",
+    "build:api": "npx --yes pnpm@10 install --frozen-lockfile && npx --yes pnpm@10 --filter @workspace/api-server run build",
+    "start:api": "npx --yes pnpm@10 --filter @workspace/api-server run start",
     "dev": "concurrently \"pnpm --filter ./backend run dev\" \"pnpm --filter ./frontend run dev\"",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
