@@ -5,8 +5,8 @@ services:
     name: devscope-api
     runtime: node
     rootDir: .
-    buildCommand: npm install -g pnpm@9 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
-    startCommand: pnpm --filter @workspace/api-server run start
+    buildCommand: npm run build:api
+    startCommand: npm run start:api
     envVars:
       - key: NODE_ENV
         value: production
