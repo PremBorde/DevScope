@@ -27,7 +27,9 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (!id.includes("/node_modules/")) return undefined;
-          if (id.includes("/three/") || id.includes("/@react-three/")) return "vendor-3d";
+          // Only split three.js core — @react-three must share React with vendor-react
+          if (id.includes("/@react-three/")) return "vendor-react";
+          if (id.includes("/node_modules/three/")) return "vendor-3d";
           if (id.includes("/recharts/") || id.includes("/d3-") || id.includes("/victory-")) return "vendor-charts";
           if (id.includes("/framer-motion/")) return "vendor-motion";
           if (id.includes("/gsap/") || id.includes("/@gsap/")) return "vendor-gsap";
