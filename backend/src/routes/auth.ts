@@ -8,6 +8,14 @@ const OAUTH_ENABLED = !!(
   process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
 );
 
+const FRONTEND_BASE = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "") ?? "";
+
+/** OAuth redirects: API host when combined deploy; full SPA URL when split (Vercel + API). */
+function spaRedirect(pathWithQuery: string): string {
+  const p = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
+  return FRONTEND_BASE ? `${FRONTEND_BASE}${p}` : p;
+}
+
 function requireOAuth(req: Request, res: Response, next: NextFunction): void {
   if (!OAUTH_ENABLED) {
     res.status(503).json({
@@ -32,10 +40,9 @@ router.get(
 router.get(
   "/github/callback",
   requireOAuth,
-  passport.authenticate("github", { failureRedirect: "/?auth=error" }),
+  passport.authenticate("github", { failureRedirect: spaRedirect("/?auth=error") }),
   (_req: Request, res: Response) => {
-    // Successful login — send user back to the SPA
-    res.redirect("/?auth=success");
+    res.redirect(spaRedirect("/?auth=success"));
   }
 );
 

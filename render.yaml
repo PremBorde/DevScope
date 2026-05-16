@@ -1,0 +1,36 @@
+# Blueprint: https://render.com/docs/blueprint-spec
+version: "1"
+services:
+  - type: web
+    name: devscope-api
+    runtime: node
+    rootDir: .
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CALLBACK_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: AI_INTEGRATIONS_GEMINI_API_KEY
+        sync: false
+      - key: AI_INTEGRATIONS_GEMINI_BASE_URL
+        sync: false

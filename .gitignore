@@ -11,6 +11,13 @@ out-tsc
 # dependencies
 node_modules
 
+# Secrets (never commit)
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+
 # IDEs and editors
 /.idea
 .project

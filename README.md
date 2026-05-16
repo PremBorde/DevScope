@@ -81,11 +81,13 @@ DevScope is built as a highly scalable `pnpm` monorepo.
    ```
 
 3. **Environment Setup**
-   Copy `.env.example` to `.env` in the root and configure your variables:
+   Copy the examples and configure variables (you can use a root `.env` for local convenience, or `frontend/.env` and `backend/.env` separately):
    ```bash
    cp .env.example .env
+   cp frontend/.env.example frontend/.env
+   cp backend/.env.example backend/.env
    ```
-   *Make sure to provide your Postgres `DATABASE_URL` and `AI_INTEGRATIONS_GEMINI_API_KEY`.*
+   Provide at least `DATABASE_URL`, `AI_INTEGRATIONS_GEMINI_BASE_URL`, and `AI_INTEGRATIONS_GEMINI_API_KEY` (or `GEMINI_API_KEY` as an alias). For split local testing (Vite + API), set `VITE_API_URL=http://127.0.0.1:3001` in `frontend/.env`, `ALLOWED_ORIGINS=http://localhost:5173`, and `FRONTEND_URL=http://localhost:5173` in `backend/.env`.
 
 4. **Database Migrations**
    Push the schema to your PostgreSQL database:
@@ -105,19 +107,63 @@ pnpm run dev
 
 ## 🚢 Production Deployment
 
-DevScope is ready for production environments.
+Two supported layouts:
 
-1. **Build the Application**
+| Mode | When to use |
+|------|-------------|
+| **Combined** | Single host: Express serves the Vite build from `frontend/dist/public` when `NODE_ENV=production`. Leave `VITE_API_URL` empty in the frontend build. |
+| **Split** | Frontend on Vercel, API on Render or Railway. Set `VITE_API_URL` to the public API origin. Configure API `ALLOWED_ORIGINS` and `FRONTEND_URL`. |
+
+### Environment variables
+
+**Frontend (Vercel / build-time)**
+
+| Variable | Required (split) | Description |
+|----------|------------------|-------------|
+| `VITE_API_URL` | Yes | Public API origin, no trailing slash (e.g. `https://api.example.com`). Empty for combined mode or local dev with the Vite proxy. |
+
+**Backend (Render / Railway / any Node host)**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NODE_ENV` | Yes | `production` |
+| `PORT` | Usually auto | Host-provided listen port (e.g. Render injects `PORT`). |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SESSION_SECRET` | Yes | Long random secret for signed cookies |
+| `REDIS_URL` | No | Redis URL; omit to use in-memory cache fallback |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | Enables GitHub OAuth |
+| `GITHUB_CALLBACK_URL` | If OAuth | Must be `https://<api-host>/api/auth/github/callback` |
+| `GITHUB_TOKEN` | No | Higher GitHub API rate limits |
+| `AI_INTEGRATIONS_GEMINI_BASE_URL` / `AI_INTEGRATIONS_GEMINI_API_KEY` | For AI | Or set `GEMINI_API_KEY` only as a key alias |
+| `ALLOWED_ORIGINS` | Split deploy | Comma-separated browser origins allowed for CORS (e.g. `https://app.vercel.app`) |
+| `FRONTEND_URL` | Split deploy | SPA origin for OAuth redirects, no trailing slash |
+| `ENABLE_DEBUG_SCORE` | No | Set `true` only if you need `/api/debug-score` in production |
+
+**Trust proxy:** The API uses `trust proxy` with hop count `1`. If rate limiting or IP logging looks wrong behind your host, check your provider’s reverse-proxy docs and adjust if needed.
+
+### Vercel (frontend)
+
+- Connect the **repository root** so `pnpm` can resolve `workspace:*` packages. The repo includes [`vercel.json`](vercel.json) with install/build commands, `outputDirectory: frontend/dist/public`, and SPA rewrites.
+- Set `VITE_API_URL` in the Vercel project environment to your deployed API URL.
+
+### Render or Railway (backend)
+
+- **Render:** [`render.yaml`](render.yaml) defines a web service with `pnpm` install/build/start. Add Postgres and Redis in the dashboard and wire `DATABASE_URL` / `REDIS_URL`.
+- **Railway:** [`railway.json`](railway.json) mirrors the same build and start commands; configure the same env vars in the service.
+
+### Combined-mode build and run
+
+1. **Build**
    ```bash
    pnpm run build
    ```
-   *This compiles the Express backend and builds the React frontend into `frontend/dist/public`.*
+   Compiles the Express backend and builds the React app into `frontend/dist/public`.
 
-2. **Start the Production Server**
+2. **Start**
    ```bash
    pnpm --filter @workspace/api-server run start
    ```
-   *The Express backend is configured to automatically serve the static React assets in production mode.*
+   With `NODE_ENV=production` and the frontend build present, Express serves the SPA and `/api` on one origin.
 
 ## ⚖️ Scoring Methodology
 

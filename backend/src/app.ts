@@ -34,7 +34,15 @@ const replitDomains = (process.env.REPLIT_DOMAINS ?? "")
   .filter(Boolean)
   .map((d) => `https://${d}`);
 
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+
 function isOriginAllowed(origin: string): boolean {
+  if (allowedOrigins.has(origin)) return true;
   // Allow all *.replit.dev preview domains and *.replit.app production domains
   if (/^https:\/\/[^.]+\.replit\.(dev|app)$/.test(origin)) return true;
   if (replitDomains.includes(origin)) return true;
@@ -79,7 +87,8 @@ app.use(
       // Dev mode: allow everything
       if (!isProd) return callback(null, true);
       if (isOriginAllowed(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin '${origin}' not allowed`));
+      logger.warn({ origin }, "CORS rejected origin");
+      return callback(null, false);
     },
     credentials: true,
   }),

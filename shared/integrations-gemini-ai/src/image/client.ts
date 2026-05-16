@@ -1,11 +1,11 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
 const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-const apiKey  = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+const apiKey  = process.env.AI_INTEGRATIONS_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
 
 if (!baseUrl || !apiKey) {
   console.warn(
-    "[gemini/image] WARNING: AI_INTEGRATIONS_GEMINI_BASE_URL / AI_INTEGRATIONS_GEMINI_API_KEY not set. " +
+    "[gemini/image] WARNING: AI_INTEGRATIONS_GEMINI_BASE_URL / AI_INTEGRATIONS_GEMINI_API_KEY (or GEMINI_API_KEY) not set. " +
     "Image generation will not work.",
   );
 }

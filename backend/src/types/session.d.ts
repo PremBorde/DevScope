@@ -3,7 +3,7 @@ declare namespace Express {
     githubId: string;
     username: string;
     displayName: string | null;
-    avatarUrl: string;
-    profileUrl: string;
+    avatarUrl: string | null;
+    profileUrl: string | null;
   }
 }

@@ -1,15 +1,16 @@
 import passport from "passport";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import { logger } from "../lib/logger";
-import { db, users, eq } from "@workspace/db";
+import { db, users } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 export interface GithubSessionUser {
   id: string; // Database UUID
   githubId: string;
   username: string;
   displayName: string | null;
-  avatarUrl: string;
-  profileUrl: string;
+  avatarUrl: string | null;
+  profileUrl: string | null;
 }
 
 passport.serializeUser((user: any, done) => {

@@ -14,6 +14,9 @@ interface AuthState {
   oauthEnabled: boolean;
 }
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/+$/, "") ?? "";
+const apiUrl = (path: string) => `${API_BASE}${path}`;
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -23,7 +26,7 @@ export function useAuth() {
 
   const fetchMe = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
+      const res = await fetch(apiUrl("/api/auth/me"), { credentials: "include" });
       if (!res.ok) throw new Error("auth check failed");
       const data = await res.json() as { user: AuthUser | null; oauthEnabled: boolean };
       setState({ user: data.user, isLoading: false, oauthEnabled: data.oauthEnabled });
@@ -45,12 +48,12 @@ export function useAuth() {
   }, [fetchMe]);
 
   const login = useCallback(() => {
-    window.location.href = "/api/auth/github";
+    window.location.href = apiUrl("/api/auth/github");
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     } finally {
       setState((s) => ({ ...s, user: null }));
     }

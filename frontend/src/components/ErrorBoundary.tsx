@@ -41,7 +41,9 @@ export class ErrorBoundary extends Component<Props, State> {
               
               {this.state.error && (
                 <div className="bg-primary/10 border-2 border-black p-3 font-mono text-xs overflow-auto max-h-32">
-                  {this.state.error.message}
+                  {import.meta.env.PROD
+                    ? "Please reload or return home. If the problem persists, try again later."
+                    : this.state.error.message}
                 </div>
               )}
             </div>
@@ -68,6 +70,6 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.children;
+    return this.props.children;
   }
 }
