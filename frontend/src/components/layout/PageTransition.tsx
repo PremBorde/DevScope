@@ -1,4 +1,5 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
 import { usePageEntrance } from "@/hooks/useAnimations";
 
 interface Props {
@@ -13,9 +14,21 @@ interface Props {
  */
 export default function PageTransition({ children, className = "" }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  usePageEntrance(ref);
+
+  // Keep the page visible by default. If the entrance animation fails to run,
+  // the user still sees the content instead of a blank screen.
+  useEffect(() => {
+    if (!ref.current) return;
+
+    gsap.fromTo(
+      ref.current,
+      { opacity: 0, y: 12 },
+      { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "all" },
+    );
+  }, []);
+
   return (
-    <div ref={ref} className={`w-full ${className}`} style={{ opacity: 0 }}>
+    <div ref={ref} className={`w-full ${className}`} style={{ opacity: 1 }}>
       {children}
     </div>
   );
