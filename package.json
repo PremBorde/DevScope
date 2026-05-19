@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "db:push": "pnpm --filter @workspace/db run push",
     "build:api": "npx --yes pnpm@10 install --frozen-lockfile && npx --yes pnpm@10 --filter @workspace/api-server run build",
     "start:api": "npx --yes pnpm@10 --filter @workspace/api-server run start",
     "dev": "concurrently \"pnpm --filter ./backend run dev\" \"pnpm --filter ./frontend run dev\"",
