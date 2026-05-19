@@ -43,6 +43,8 @@ const allowedOrigins = new Set(
 
 function isOriginAllowed(origin: string): boolean {
   if (allowedOrigins.has(origin)) return true;
+  // Vercel production + preview deploys for this project
+  if (/^https:\/\/dev-scope-frontend[a-z0-9.-]*\.vercel\.app$/.test(origin)) return true;
   // Allow all *.replit.dev preview domains and *.replit.app production domains
   if (/^https:\/\/[^.]+\.replit\.(dev|app)$/.test(origin)) return true;
   if (replitDomains.includes(origin)) return true;
