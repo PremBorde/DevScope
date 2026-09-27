@@ -1431,3 +1431,39 @@ Eliminated all mock data fallbacks by rebuilding the Gemini AI integration to us
 - Callback passes signed token via URL parameter, stored in `localStorage` by frontend and attached as `Authorization: Bearer <token>`.
 - Resolves cross-port cookie blocking on `localhost:5173`/`3001` in local development and cross-domain restrictions in split Vercel/Render deployments.
 - Added user-facing error toast handling for cancelled or failed OAuth flows.
+
+---
+
+<a name="update-13"></a>
+## Update 13 — Complete Home Page & Analyze Page UI Overhaul
+
+**Date:** September 27, 2026
+**Type:** Design & UX Redesign
+
+---
+
+### Overview
+
+Addressed UI feedback across the app with a comprehensive redesign of both the Analyze page and the landing Home page, elevating DevScope to a high-converting, polished Neobrutalist developer platform with cohesive typography, balanced layouts, live interactive demo quick-chips, and a showcase Bento grid.
+
+---
+
+### 1. Home Page Redesign (`frontend/src/pages/home.tsx`)
+- **Interactive Quick-Demo Chips**: Added instant 1-click preview chips for famous developers (`torvalds`, `gaearon`, `shadcn`, `yyx990803`, `addyosmani`) with grade badge indicators so visitors can test DevScope in one click without typing.
+- **Dynamic Live Ticker Marquee**: Neo-brutalist continuous scrolling banner highlighting real-time metrics (Gemini 2.5/3.5 Flash Lite engine, 100% real repo analysis, zero mock data, SVG badges, recruiter simulator).
+- **5-Pillar Platform Bento Grid**:
+  1. *Developer Scope Score*: Visual breakdown of code quality, velocity, documentation, and impact.
+  2. *Embeddable GitHub Badges*: Live preview of the profile README SVG score badge.
+  3. *AI Dynamic 30-Day Roadmap*: Target-role-tailored career leveling with persistent checklist tracking.
+  4. *Recruiter Interview Screen Simulator*: Repository-specific technical questions with interviewer signals.
+  5. *Resume & LinkedIn Bullet Generator*: Google X-Y-Z formatted bullet points with instant clipboard copy.
+- **"How DevScope Works" 3-Step Flow**: Clear visual step cards explaining OAuth/public username lookup, Gemini Flash Lite analysis, and continuous roadmap leveling.
+- **High-Converting Bottom CTA Banner**: Brutalist orange banner with fast username lookup and GitHub sign-in button.
+
+---
+
+### 2. Analyze Page Layout Polish (`frontend/src/pages/analyze.tsx`)
+- Fixed awkward vertical stretching and giant hero banners that pushed key score metrics below the fold.
+- Structured developer header into balanced, clean cards matching the Neobrutalist aesthetic.
+- Added clean tabbed Developer Toolkit housing the Role-Targeted Roadmap, Interview Simulator, Resume Bullets, and Embeddable Badge.
+
