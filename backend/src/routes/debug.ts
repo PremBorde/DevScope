@@ -31,9 +31,15 @@ interface GithubRepo {
 }
 
 async function fetchGitHubUser(username: string): Promise<GithubUser> {
-  const res = await fetch(`https://api.github.com/users/${username}`, {
-    headers: { Accept: "application/vnd.github.v3+json" },
-  });
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "DevScope-AI-Scorer/1.0",
+    "Cache-Control": "no-cache",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+  }
+  const res = await fetch(`https://api.github.com/users/${username}`, { headers });
   if (res.status === 404) throw { status: 404, message: `GitHub user '${username}' not found` };
   if (res.status === 429 || res.status === 403) throw { status: 429, message: "GitHub API rate limit exceeded" };
   if (!res.ok) throw { status: 500, message: `GitHub API error: ${res.status}` };
@@ -41,9 +47,17 @@ async function fetchGitHubUser(username: string): Promise<GithubUser> {
 }
 
 async function fetchGitHubRepos(username: string): Promise<GithubRepo[]> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "DevScope-AI-Scorer/1.0",
+    "Cache-Control": "no-cache",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+  }
   const res = await fetch(
     `https://api.github.com/users/${username}/repos?per_page=100&sort=updated&type=owner`,
-    { headers: { Accept: "application/vnd.github.v3+json" } }
+    { headers }
   );
   if (!res.ok) return [];
   return res.json() as Promise<GithubRepo[]>;
@@ -71,12 +85,16 @@ router.get("/:username", async (req: Request, res: Response) => {
     return;
   }
 
+  const forceRefresh = req.query.fresh === "true" || req.query.force === "true";
+
   // ── Cache lookup for debug scores ──────────────────────────────────────
   const debugUsername = `${DEBUG_NAMESPACE}${username}`;
-  const hit = await getCached(debugUsername);
-  if (hit) {
-    res.json({ ...(hit.data as object), cached: true, cacheSource: hit.source });
-    return;
+  if (!forceRefresh) {
+    const hit = await getCached(debugUsername);
+    if (hit) {
+      res.json({ ...(hit.data as object), cached: true, cacheSource: hit.source });
+      return;
+    }
   }
 
   try {

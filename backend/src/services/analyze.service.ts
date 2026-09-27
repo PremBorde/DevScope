@@ -10,7 +10,7 @@
 import { db, analysesTable } from "@workspace/db";
 import { generateContentWithFallback } from "@workspace/integrations-gemini-ai";
 import { calculateScore, type ScoredUser, type ScoredRepo } from "./scoring.service";
-import { getCached, setCached } from "./github-cache.service";
+import { getCached, setCached, invalidateCache } from "./github-cache.service";
 import { logger } from "../lib/logger";
 import { AppError } from "../lib/errors";
 
@@ -37,6 +37,7 @@ export interface RepoStats {
   reposWithDescription: number;
   mostStarredRepo: string | null;
   topLanguages: string[];
+  forksExcluded?: number;
 }
 
 export interface AnalysisData {
@@ -66,12 +67,18 @@ const inFlight = new Map<string, Promise<AnalysisData>>();
 
 // ── GitHub fetch helpers ─────────────────────────────────────────────────────
 
-export async function fetchGitHubUser(username: string): Promise<GithubUser> {
+export async function fetchGitHubUser(username: string, token?: string): Promise<GithubUser> {
   let res: Response;
   try {
-    const headers: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "DevScope-AI-Scorer/1.0",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      Pragma: "no-cache",
+    };
+    const authToken = token || process.env.GITHUB_TOKEN;
+    if (authToken) {
+      headers.Authorization = `token ${authToken}`;
     }
 
     res = await fetch(`https://api.github.com/users/${username}`, {
@@ -95,11 +102,17 @@ export async function fetchGitHubUser(username: string): Promise<GithubUser> {
   return res.json() as Promise<GithubUser>;
 }
 
-export async function fetchGitHubRepos(username: string): Promise<GithubRepo[]> {
+export async function fetchGitHubRepos(username: string, token?: string): Promise<GithubRepo[]> {
   try {
-    const headers: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "DevScope-AI-Scorer/1.0",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      Pragma: "no-cache",
+    };
+    const authToken = token || process.env.GITHUB_TOKEN;
+    if (authToken) {
+      headers.Authorization = `token ${authToken}`;
     }
 
     const res = await fetch(
@@ -221,10 +234,15 @@ Return ONLY a JSON object:
 
 // ── Core analysis function ───────────────────────────────────────────────────
 
-async function _runAnalysis(username: string): Promise<AnalysisData> {
+export interface AnalyzeUserOptions {
+  forceRefresh?: boolean;
+  token?: string;
+}
+
+async function _runAnalysis(username: string, token?: string): Promise<AnalysisData> {
   const [user, repos] = await Promise.all([
-    fetchGitHubUser(username),
-    fetchGitHubRepos(username),
+    fetchGitHubUser(username, token),
+    fetchGitHubRepos(username, token),
   ]);
 
   const languageDistribution = computeLanguageDistribution(repos);
@@ -244,6 +262,7 @@ async function _runAnalysis(username: string): Promise<AnalysisData> {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([lang]) => lang),
+    forksExcluded: Math.max(0, (user.public_repos ?? 0) - repos.length),
   };
 
   const aiInsights = await generateAiInsights(user, repoStats, scoreResult, languageDistribution);
@@ -286,24 +305,36 @@ async function _runAnalysis(username: string): Promise<AnalysisData> {
   return result;
 }
 
-export async function analyzeUser(username: string): Promise<AnalysisData> {
-  // 1 — Cache hit (Redis → memory)
-  const hit = await getCached(username);
-  if (hit) {
-    return { ...(hit.data as AnalysisData), cached: true, cacheSource: hit.source };
+export async function analyzeUser(
+  username: string,
+  options: AnalyzeUserOptions = {}
+): Promise<AnalysisData> {
+  const { forceRefresh = false, token } = options;
+
+  // 1 — If forceRefresh requested, bust the cache
+  if (forceRefresh) {
+    logger.info({ username }, "[FORCE REFRESH] Invalidation requested — fetching real-time data from GitHub API");
+    await invalidateCache(username);
+    inFlight.delete(username);
+  } else {
+    // Cache hit check (Redis → memory)
+    const hit = await getCached(username);
+    if (hit) {
+      return { ...(hit.data as AnalysisData), cached: true, cacheSource: hit.source };
+    }
   }
 
   // 2 — In-flight deduplication: if another request is already running for this
   //     username, join it instead of spawning a duplicate GitHub + AI call.
   const existing = inFlight.get(username);
-  if (existing) {
+  if (existing && !forceRefresh) {
     logger.info({ username }, "[IN-FLIGHT] Joining existing request — deduplicating concurrent call");
     const result = await existing;
     return { ...result, cached: true, cacheSource: "in-flight" };
   }
 
   // 3 — New request: register it so concurrent callers can join
-  const promise = _runAnalysis(username).finally(() => {
+  const promise = _runAnalysis(username, token).finally(() => {
     inFlight.delete(username);
   });
 

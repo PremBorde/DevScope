@@ -20,9 +20,21 @@ export class AnalyzeController {
     }
 
     const { username } = parseResult.data;
+    const forceRefresh =
+      req.query.fresh === "true" ||
+      req.query.force === "true" ||
+      req.query.live === "true" ||
+      req.headers["cache-control"] === "no-cache";
+
+    const token =
+      (req.headers["x-github-token"] as string) ||
+      (req.headers["authorization"]?.startsWith("Bearer ")
+        ? req.headers["authorization"].slice(7)
+        : undefined) ||
+      (req.user as any)?.githubAccessToken;
 
     try {
-      const result = await analyzeUser(username);
+      const result = await analyzeUser(username, { forceRefresh, token });
       res.json(result);
     } catch (err) {
       next(err);

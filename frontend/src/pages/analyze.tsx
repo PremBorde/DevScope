@@ -7,6 +7,7 @@ import {
   getAnalyzeGithubUserQueryKey,
   usePostAiRoadmap,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { WeeklyRoadmap } from "@workspace/api-client-react";
 import {
   PieChart,
@@ -104,16 +105,37 @@ const ROLE_OPTIONS: { id: TargetRole; label: string; icon: string }[] = [
   { id: "open_source", label: "Open Source Creator", icon: "🚀" },
 ];
 
+function formatTimeAgo(isoString?: string): string {
+  if (!isoString) return "recently";
+  try {
+    const ms = Date.now() - new Date(isoString).getTime();
+    const secs = Math.max(0, Math.floor(ms / 1000));
+    if (secs < 60) return "just now";
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return "recently";
+  }
+}
+
 export default function Analyze() {
   const params = useParams<{ username: string }>();
   const username = params.username ?? "";
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   const pageRef = useRef<HTMLDivElement>(null);
   const breakdownRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const insightsRef = useRef<HTMLDivElement>(null);
   const weekPlanRef = useRef<HTMLDivElement>(null);
+
+  // Live Refresh State
+  const [isRefreshingLive, setIsRefreshingLive] = useState(false);
 
   // Toolkit tab selector
   const [activeToolkitTab, setActiveToolkitTab] = useState<"badge" | "interview" | "resume">("badge");
@@ -155,6 +177,39 @@ export default function Analyze() {
 
   const cardHover = useCardHover();
   const { toast } = useToast();
+
+  const handleForceRefresh = async () => {
+    if (!username || isRefreshingLive) return;
+    setIsRefreshingLive(true);
+    try {
+      const res = await fetch(apiUrl(`/api/analyze/${encodeURIComponent(username)}?fresh=true`), {
+        headers: {
+          ...getAuthHeaders(),
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Failed to fetch live data (HTTP ${res.status})`);
+      }
+      const freshData = await res.json();
+      queryClient.setQueryData(getAnalyzeGithubUserQueryKey(username), freshData);
+      toast({
+        title: "⚡ Live GitHub Sync Complete!",
+        description: `Fetched real-time data for @${username} directly from GitHub API!`,
+      });
+      greeterBus.emit({ type: "celebrate", msg: "Live data synced! 🚀" });
+    } catch (err: any) {
+      toast({
+        title: "Live Sync Failed",
+        description: err.message || "Could not reach GitHub API. Please try again shortly.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshingLive(false);
+    }
+  };
 
   useProgressBars(breakdownRef, ".gsap-bar");
   useStaggerEntrance(statsRef, ".stat-card", { stagger: 0.08, delay: 0.05 });
@@ -451,26 +506,52 @@ export default function Analyze() {
     <PageTransition>
       <div ref={pageRef} className="space-y-8 pb-16 max-w-7xl mx-auto px-2 sm:px-4">
         {/* Top actions sub-header */}
-        <div className="border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0_#000] flex items-center justify-between">
+        <div className="border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0_#000] flex flex-wrap items-center justify-between gap-3">
           <button
             onClick={() => setLocation("/")}
             className="flex items-center gap-2 font-heading font-black uppercase text-xs hover:text-primary transition-colors tracking-wider"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Search
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Real-time Live Status Badge */}
+            {cached ? (
+              <div
+                className="hidden sm:flex items-center gap-1.5 bg-amber-100/80 border-2 border-black px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-amber-950 shadow-[1.5px_1.5px_0_#000]"
+                title={`Served from cache (${formatTimeAgo(analyzedAt)}). Click 'Sync Real-Time' to re-query GitHub API now.`}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 border border-black" />
+                <span>Cached · {formatTimeAgo(analyzedAt)}</span>
+              </div>
+            ) : (
+              <div
+                className="hidden sm:flex items-center gap-1.5 bg-emerald-100 border-2 border-black px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-950 shadow-[1.5px_1.5px_0_#000]"
+                title="Direct real-time query to GitHub REST API. Cache bypassed."
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 border border-black animate-pulse" />
+                <span>Real-Time Live</span>
+              </div>
+            )}
+
+            {/* Refresh Live Data Button */}
+            <button
+              onClick={handleForceRefresh}
+              disabled={isRefreshingLive}
+              className="flex items-center gap-1.5 border-2 border-black bg-yellow-300 px-3 py-1 font-heading font-black uppercase text-xs shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[1px_1px_0_#000] transition-all disabled:opacity-50"
+              title="Query GitHub REST API directly to fetch the latest commits, stars, repos, and bio"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLive ? "animate-spin text-black" : "text-black"}`} />
+              {isRefreshingLive ? "Syncing GitHub..." : "Sync Real-Time"}
+            </button>
+
             <button
               onClick={handleShareReport}
-              className="flex items-center gap-1.5 border-2 border-black bg-white px-3 py-1 font-black uppercase text-xs shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:-translate-y-0.5 transition-all"
+              className="flex items-center gap-1.5 border-2 border-black bg-white px-3 py-1 font-heading font-black uppercase text-xs shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:-translate-y-0.5 transition-all"
             >
               <Link2 className="w-3.5 h-3.5" />
               Share Report
             </button>
-            {cached && (
-              <span className="hidden sm:inline-block text-[11px] font-bold uppercase tracking-wider bg-gray-100 border border-black px-2 py-0.5">
-                Cached (Fast)
-              </span>
-            )}
+
             <HiringBadge rec={aiInsights.hiringRecommendation} />
           </div>
         </div>
@@ -539,10 +620,23 @@ export default function Analyze() {
                 <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-black" />
                 <span>Since {new Date(profile.created_at).getFullYear()}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div
+                className="flex items-center gap-1.5 cursor-help"
+                title={`${profile.public_repos} total repos on GitHub profile (${repoStats.totalRepos} original source repos analyzed, ${Math.max(0, profile.public_repos - repoStats.totalRepos)} forked repos excluded)`}
+              >
                 <Book className="w-3.5 h-3.5 flex-shrink-0 text-black" />
-                <span>{profile.public_repos} repos</span>
+                <span>{profile.public_repos} total repos</span>
               </div>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-dashed border-gray-300 flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+              <span className="flex items-center gap-1.5" title={`Analyzed at: ${new Date(analyzedAt).toLocaleString()}`}>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 border border-black animate-pulse" />
+                {cached ? `Cached ${formatTimeAgo(analyzedAt)}` : `Live Synced ${formatTimeAgo(analyzedAt)}`}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-gray-100 px-1.5 py-0.5 border border-black">
+                GitHub REST v3
+              </span>
             </div>
           </div>
 
@@ -650,8 +744,20 @@ export default function Analyze() {
           {/* Right: Quick Stats 2x2 Grid (5 cols) */}
           <div ref={statsRef} className="lg:col-span-5 grid grid-cols-2 gap-4">
             {[
-              { label: "Public Repos", val: repoStats.totalRepos, icon: <Book className="w-4 h-4 text-primary" />, desc: "Owned repositories" },
-              { label: "Total Stars", val: repoStats.totalStars, icon: <Star className="w-4 h-4 text-yellow-500" />, desc: "Across all projects" },
+              {
+                label: "Original Repos",
+                val: repoStats.totalRepos,
+                icon: <Book className="w-4 h-4 text-primary" />,
+                desc: (profile.public_repos > repoStats.totalRepos)
+                  ? `${repoStats.totalRepos} owned (${profile.public_repos - repoStats.totalRepos} forks excluded)`
+                  : "All owned source repos",
+              },
+              {
+                label: "Total Stars",
+                val: repoStats.totalStars,
+                icon: <Star className="w-4 h-4 text-yellow-500" />,
+                desc: `Across ${repoStats.totalRepos} original projects`,
+              },
               { label: "Total Forks", val: repoStats.totalForks, icon: <GitFork className="w-4 h-4 text-blue-500" />, desc: "Community engagement" },
               { label: "Avg Stars / Repo", val: repoStats.avgStarsPerRepo, icon: <TrendingUp className="w-4 h-4 text-green-600" />, desc: "Quality per project" },
             ].map(({ label, val, icon, desc }) => (
