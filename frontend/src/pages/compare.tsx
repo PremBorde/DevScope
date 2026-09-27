@@ -359,7 +359,7 @@ export default function Compare() {
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
               {[
                 { icon: "📊", title: "Metric-by-metric", desc: "Green ✓ / Red ✗ on every category" },
-                { icon: "🤖", title: "AI Verdict", desc: "Gemini generates a brutally honest hiring decision" },
+                { icon: "🤖", title: "AI Verdict", desc: "Autonomous AI generates a brutally honest hiring decision" },
                 { icon: "🔗", title: "Shareable URL", desc: "Bookmark or share the compare link" },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="border-2 border-black p-4 bg-white shadow-[3px_3px_0_#000]">

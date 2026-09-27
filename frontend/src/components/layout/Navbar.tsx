@@ -63,6 +63,10 @@ export default function Navbar() {
               <span className="font-heading font-bold text-lg text-black">DS</span>
             </div>
             <span className="font-heading font-bold text-xl tracking-tight hidden sm:inline">DevScope AI</span>
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2 py-0.5 border border-black bg-green-100 text-[10px] font-black uppercase tracking-wider shadow-[1.5px_1.5px_0_#000] ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Engine Online
+            </span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">

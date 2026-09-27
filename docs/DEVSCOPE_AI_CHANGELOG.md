@@ -1467,3 +1467,53 @@ Addressed UI feedback across the app with a comprehensive redesign of both the A
 - Structured developer header into balanced, clean cards matching the Neobrutalist aesthetic.
 - Added clean tabbed Developer Toolkit housing the Role-Targeted Roadmap, Interview Simulator, Resume Bullets, and Embeddable Badge.
 
+---
+
+<a name="update-14"></a>
+## Update 14 — Removal of LLM Provider Branding & Creative Website Overhaul
+
+**Date:** September 27, 2026
+**Type:** Creative Polish & UI Enhancement
+
+---
+
+### Overview
+
+Removed all internal LLM provider branding ("Gemini", "Gemini 2.5 Flash Lite") across the entire frontend in favor of high-value recruiter & developer terminology ("Autonomous Neural Engine", "Recruiter AI Audits"). Added rich creative touches throughout the platform, including an interactive Neobrutalist CLI Terminal Playground, a dynamic "Dev Vibe" Score Estimator & Roast Generator, Developer Archetype badges, and live engine status pings.
+
+---
+
+### 1. Removal of Provider Branding
+- Removed all mentions of "Gemini" from `home.tsx`, `analyze.tsx`, `compare.tsx`, and `WalkingLoader.tsx`.
+- Replaced pill tag with: `Autonomous Neural Engine · Recruiter Audits`.
+- Replaced loading messages in `WalkingLoader.tsx` with witty, realistic developer steps (*"Synthesizing neural code signals…"*, *"Measuring test coverage (hoping for the best)…"*, *"Checking recruiter attention span (approx 6s)…"*).
+
+---
+
+### 2. Interactive CLI Terminal Playground (`home.tsx`)
+- Added a retro macOS/Linux-style Neobrutalist terminal window (`devscope-cli v2.6.4`).
+- Interactive tabs:
+  - `audit @torvalds`: Shows realistic terminal output breaking down code quality, activity recency, and Tier S verdict.
+  - `roadmap --role=backend`: Shows 4 weekly milestone commands.
+  - `interview --simulator`: Shows real architectural screen questions & recruiter signals.
+  - `badge --embed`: Shows SVG badge endpoint & markdown snippet.
+- Includes quick-launch button to run immediately on any developer profile.
+
+---
+
+### 3. Interactive "Dev Vibe" Score Playground & Roast Generator (`home.tsx`)
+- Built an interactive score calculator with 3 sliders:
+  - *Weekly Commit Frequency* (1 - 50 commits/wk)
+  - *README & Test Coverage* (5% - 100%)
+  - *Languages in Repos* (1 - 8 polyglot breadth)
+- Computes real-time simulated DevScope score, tier badge, and developer archetype (`⚡ 10x Systems Architect`, `🚢 Battle-Hardened Shipper`, `🔨 Pragmatic Code Crafter`, `🌱 Emerging Explorer`).
+- Dynamically outputs witty recruiter reactions & developer roasts based on slider combinations.
+
+---
+
+### 4. Global Creative Polish
+- Added pulsing `"Engine Online"` live status badge to `Navbar.tsx`.
+- Added dynamic `"⚡ Developer Archetype"` sticker to the profile card on `analyze.tsx`.
+- Added playful floating brutalist stickers (`★ 100% UNBIASED HEURISTICS`, `⚡ ZERO RESUME FLUFF`).
+
+

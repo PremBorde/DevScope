@@ -507,15 +507,22 @@ export default function Analyze() {
               </div>
 
               <div className="mt-4 pt-3 border-t-2 border-black">
-                {profile.bio ? (
-                  <p className="font-medium text-xs text-muted-foreground line-clamp-2 italic">
+                {profile.bio && (
+                  <p className="font-medium text-xs text-muted-foreground line-clamp-2 italic mb-2">
                     "{profile.bio}"
                   </p>
-                ) : (
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Public GitHub Contributor
-                  </p>
                 )}
+                <div className="flex items-center gap-2">
+                  <span className="inline-block border border-black bg-yellow-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-[1.5px_1.5px_0_#000]">
+                    {scoreBreakdown.total >= 85
+                      ? "⚡ 10x Systems Architect"
+                      : scoreBreakdown.total >= 70
+                      ? "🚢 Battle-Hardened Shipper"
+                      : scoreBreakdown.total >= 50
+                      ? "🔨 Pragmatic Code Crafter"
+                      : "🌱 Emerging Explorer"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -669,7 +676,7 @@ export default function Analyze() {
         <div ref={insightsRef} className="reveal border-4 border-black bg-white p-6 shadow-[6px_6px_0_#000]">
           <div className="flex items-center justify-between mb-4 border-b-2 border-black pb-3">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Gemini Flash Lite</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Autonomous Neural Engine</span>
               <h2 className="font-heading font-black uppercase text-xl mt-0.5">Recruiter Assessment & Verdict</h2>
             </div>
             <HiringBadge rec={aiInsights.hiringRecommendation} />
@@ -732,7 +739,7 @@ export default function Analyze() {
           <div className="px-6 py-5 border-b-2 border-black flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary border-b-2 border-primary pb-0.5">Gemini AI</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary border-b-2 border-primary pb-0.5">Autonomous Engine</span>
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-green-100 border border-black">Dynamic Generator</span>
               </div>
               <h2 className="font-heading font-black uppercase text-xl mt-1">📅 30-Day Career & Action Roadmap</h2>
@@ -795,7 +802,7 @@ export default function Analyze() {
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-5 h-5 border-2 border-black border-t-primary rounded-full animate-spin flex-shrink-0" />
                   <p className="font-bold text-xs uppercase tracking-wide text-muted-foreground">
-                    Gemini AI is crafting your {ROLE_OPTIONS.find((r) => r.id === targetRole)?.label} roadmap…
+                    DevScope AI is crafting your {ROLE_OPTIONS.find((r) => r.id === targetRole)?.label} roadmap…
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1001,7 +1008,7 @@ export default function Analyze() {
                   <div>
                     <h3 className="font-heading font-black text-base uppercase">Technical Interview Screen Simulator</h3>
                     <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                      Gemini reviews your specific repositories and predicts the architectural questions interviewers will ask.
+                      DevScope AI reviews your specific repositories and predicts the architectural questions interviewers will ask.
                     </p>
                   </div>
                   <button

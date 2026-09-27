@@ -4,11 +4,12 @@ const LOADER_MESSAGES = [
   "Cloning your repositories…",
   "Reading every README…",
   "Judging your commit messages…",
-  "Calculating your dev score…",
-  "Consulting Gemini AI…",
-  "Weighing your star count…",
-  "Checking your last commit date…",
-  "Compiling the verdict…",
+  "Calculating deterministic dev score…",
+  "Synthesizing neural code signals…",
+  "Auditing architectural patterns…",
+  "Measuring test coverage (hoping for the best)…",
+  "Checking recruiter attention span (approx 6s)…",
+  "Compiling the final hiring verdict…",
 ];
 
 const PAGE_MESSAGES = [
