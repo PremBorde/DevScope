@@ -46,6 +46,19 @@ router.post("/progress/:username", async (req: Request, res: Response, next: Nex
     return next(new AppError(400, "validation_error", "Username is required"));
   }
 
+  // Authorization check: If logged in, prevent modifying another developer's progress
+  const authHeader = req.headers.authorization;
+  if (req.isAuthenticated?.() || authHeader?.startsWith("Bearer ")) {
+    const { resolveUser } = await import("../middleware/auth");
+    const user = resolveUser(req);
+    if (user && user.role !== "admin" && user.username.toLowerCase() !== username.toLowerCase()) {
+      return res.status(403).json({
+        error: "forbidden",
+        message: `Forbidden: You are signed in as @${user.username} and cannot modify the roadmap of @${username}.`,
+      });
+    }
+  }
+
   const { checked } = req.body as { checked: string[] };
   if (!Array.isArray(checked)) {
     return next(new AppError(400, "validation_error", "checked must be an array of task IDs"));

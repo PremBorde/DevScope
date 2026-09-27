@@ -25,6 +25,7 @@ import {
   Cpu,
   Flame,
   Check,
+  Lock,
 } from "lucide-react";
 import { greeterBus } from "@/lib/greeterBus";
 import { Button } from "@/components/ui/button";
@@ -155,7 +156,7 @@ function useCSSReveal(containerRef: React.RefObject<HTMLDivElement | null>) {
 export default function Home() {
   usePageTitle();
   const [, setLocation] = useLocation();
-  const { user, oauthEnabled, login } = useAuth();
+  const { user, oauthEnabled, login, openSignInModal } = useAuth();
   const pageRef = useRef<HTMLDivElement>(null);
 
   const [username, setUsername] = useState("");
@@ -383,16 +384,16 @@ export default function Home() {
                   />
                   Analyze My Profile (@{user.username})
                 </Button>
-              ) : oauthEnabled ? (
+              ) : (
                 <Button
-                  onClick={login}
+                  onClick={openSignInModal}
                   variant="outline"
                   className="h-11 px-6 text-sm font-black border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white shadow-[3px_3px_0_#000] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"
                 >
-                  <Github className="w-4 h-4" />
-                  Login with GitHub
+                  <Lock className="w-4 h-4" />
+                  Sign In (Instant or OAuth)
                 </Button>
-              ) : null}
+              )}
 
               <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-black/70">
                 <span>✓ 100% Free</span>

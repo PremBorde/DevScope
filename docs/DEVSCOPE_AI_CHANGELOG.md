@@ -1516,4 +1516,60 @@ Removed all internal LLM provider branding ("Gemini", "Gemini 2.5 Flash Lite") a
 - Added dynamic `"⚡ Developer Archetype"` sticker to the profile card on `analyze.tsx`.
 - Added playful floating brutalist stickers (`★ 100% UNBIASED HEURISTICS`, `⚡ ZERO RESUME FLUFF`).
 
+---
+
+<a name="update-15"></a>
+## Update 15 — Full Authentication & Authorization System with RBAC
+
+**Date:** September 27, 2026
+**Type:** Core Feature & Security Architecture
+
+---
+
+### Overview
+
+Implemented a complete, multi-strategy Authentication and Role-Based Access Control (RBAC) authorization system. Users can authenticate through 1-click GitHub OAuth, instant verified GitHub username lookup, or GitHub Personal Access Tokens (PATs) for elevated Pro tier access. Built a Neobrutalist `SignInModal` dialog accessible from anywhere on the platform, a dedicated `/login` page, and backend ownership & role authorization guards on user resources.
+
+---
+
+### 1. Multi-Strategy Authentication (`backend/src/routes/auth.ts`)
+- **Instant Verified Developer Sign-In (`POST /api/auth/signin/developer`)**:
+  - Authenticates any public GitHub user by verifying their profile with GitHub API (`https://api.github.com/users/:username`).
+  - Auto-syncs avatar, bio, and repositories; issues a signed HMAC-SHA256 Auth Token + Passport session with role `developer`.
+- **Personal Access Token (PAT) Pro Tier (`POST /api/auth/signin/pat`)**:
+  - Authenticates via GitHub PAT (`GET https://api.github.com/user`).
+  - Grants `pro` role with elevated rate limits (5,000 req/hr) and private repository auditing privileges.
+- **Demo Developer Profiles (`POST /api/auth/signin/demo`)**:
+  - 1-click test sign-in as `@torvalds`, `@gaearon`, or `@shadcn` so recruiters and evaluators can instantly test the authenticated dashboard experience.
+- **GitHub OAuth (`GET /api/auth/github` & `GET /api/auth/github/callback`)**:
+  - Standard OAuth strategy with dual token + cookie bridge for cross-port resilience.
+
+---
+
+### 2. Authorization & RBAC Middleware (`backend/src/middleware/auth.ts`)
+- **Roles**:
+  - `guest`: Public read-only lookups.
+  - `developer`: Roadmap task persistence, personal dashboard history, interview screen generator, and resume bullets.
+  - `pro`: 5,000 req/hr rate limits, private repository audits, and high-frequency AI regeneration.
+  - `admin`: Full resource and cache management.
+- **Guards**:
+  - `resolveUser()`: Extracts identity from session cookie or `Authorization: Bearer <token>`.
+  - `requireAuth()`: Rejects unauthenticated calls with 401.
+  - `requireRole(["developer", "pro", "admin"])`: Enforces minimum tier.
+  - `requireOwnerOrAdmin()`: Enforces that signed-in users can only modify their own profile resources (e.g. roadmap progress).
+
+---
+
+### 3. Frontend Sign-In UI & Components
+- **`frontend/src/components/auth/SignInModal.tsx`**:
+  - Neobrutalist modal dialog listening to global `authModal.open()` with 4 quick tabs (Developer, OAuth, Pro PAT, Demo).
+- **`frontend/src/pages/login.tsx`**:
+  - Dedicated `/login` and `/auth` routes with full permissions breakdown and access controls.
+- **`Navbar.tsx`**:
+  - Added high-visibility **"Sign In"** button on desktop and mobile drawer.
+  - When signed in, displays user avatar, username, and role badge (`DEV` / `PRO`).
+- **`useAuth.ts`**:
+  - Added `loginAsDeveloper()`, `loginWithPAT()`, `loginAsDemo()`, `openSignInModal()`, `hasPermission()`, and `isPro`.
+
+
 

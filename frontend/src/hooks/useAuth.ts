@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 
 export interface AuthUser {
+  id: string;
   githubId: string;
   username: string;
   displayName: string | null;
   avatarUrl: string;
   profileUrl: string;
+  role: "developer" | "pro" | "admin";
+  permissions: string[];
 }
 
 interface AuthState {
@@ -43,6 +46,21 @@ export function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// Global modal bus for opening Sign In dialog from any button
+type AuthModalListener = (open: boolean) => void;
+const modalListeners = new Set<AuthModalListener>();
+
+export const authModal = {
+  open: () => modalListeners.forEach((fn) => fn(true)),
+  close: () => modalListeners.forEach((fn) => fn(false)),
+  subscribe: (fn: AuthModalListener) => {
+    modalListeners.add(fn);
+    return () => {
+      modalListeners.delete(fn);
+    };
+  },
+};
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -79,7 +97,6 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    // Check URL parameters for OAuth redirect results
     const params = new URLSearchParams(window.location.search);
     const authStatus = params.get("auth");
     const token = params.get("token");
@@ -102,8 +119,92 @@ export function useAuth() {
     }
   }, [fetchMe]);
 
-  const login = useCallback(() => {
+  const loginWithOAuth = useCallback(() => {
     window.location.href = apiUrl("/api/auth/github");
+  }, []);
+
+  const loginAsDeveloper = useCallback(async (username: string) => {
+    try {
+      const res = await fetch(apiUrl("/api/auth/signin/developer"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to sign in");
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      setState((prev) => ({
+        ...prev,
+        user: data.user,
+        authError: null,
+      }));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Sign in failed" };
+    }
+  }, []);
+
+  const loginWithPAT = useCallback(async (pat: string) => {
+    try {
+      const res = await fetch(apiUrl("/api/auth/signin/pat"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ pat }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Invalid Personal Access Token");
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      setState((prev) => ({
+        ...prev,
+        user: data.user,
+        authError: null,
+      }));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "PAT verification failed" };
+    }
+  }, []);
+
+  const loginAsDemo = useCallback(async (username: string) => {
+    try {
+      const res = await fetch(apiUrl("/api/auth/signin/demo"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Demo sign in failed");
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      setState((prev) => ({
+        ...prev,
+        user: data.user,
+        authError: null,
+      }));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Demo sign in failed" };
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -120,5 +221,35 @@ export function useAuth() {
     }
   }, []);
 
-  return { ...state, login, logout, refetch: fetchMe };
+  const hasPermission = useCallback(
+    (permission: string) => {
+      if (!state.user) return false;
+      if (state.user.role === "admin") return true;
+      return state.user.permissions?.includes(permission) ?? false;
+    },
+    [state.user]
+  );
+
+  const isRole = useCallback(
+    (role: string) => {
+      return state.user?.role === role;
+    },
+    [state.user]
+  );
+
+  const isPro = state.user?.role === "pro" || state.user?.role === "admin";
+
+  return {
+    ...state,
+    login: loginWithOAuth,
+    loginWithOAuth,
+    loginAsDeveloper,
+    loginWithPAT,
+    loginAsDemo,
+    logout,
+    hasPermission,
+    isRole,
+    isPro,
+    openSignInModal: authModal.open,
+  };
 }

@@ -9,6 +9,8 @@ import HomeGreeter, { type HatType } from "@/components/HomeGreeter";
 import { greeterBus } from "@/lib/greeterBus";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+import SignInModal from "@/components/auth/SignInModal";
+
 const Home      = lazy(() => import("@/pages/home"));
 const Analyze   = lazy(() => import("@/pages/analyze"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -16,6 +18,7 @@ const History   = lazy(() => import("@/pages/history"));
 const Report     = lazy(() => import("@/pages/report"));
 const ReportView = lazy(() => import("@/pages/report-view"));
 const Compare    = lazy(() => import("@/pages/compare"));
+const Login      = lazy(() => import("@/pages/login"));
 const NotFound   = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient({
@@ -305,9 +308,12 @@ function Router() {
       )}
 
       <main className="flex-1 flex flex-col w-full">
+        <SignInModal />
         <Suspense fallback={<WalkingLoader />}>
           <Switch>
             <Route path="/"                          component={Home}      />
+            <Route path="/login"                     component={Login}     />
+            <Route path="/auth"                      component={Login}     />
             <Route path="/analyze/:username"         component={Analyze}   />
             <Route path="/dashboard"                 component={Dashboard} />
             <Route path="/dashboard/history"         component={History}   />

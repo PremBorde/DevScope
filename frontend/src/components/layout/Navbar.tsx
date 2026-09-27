@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Github, LogOut, User, History, Scale, Menu, X, LayoutDashboard, GitCompare } from "lucide-react";
+import { Search, Github, LogOut, User, History, Scale, Menu, X, LayoutDashboard, GitCompare, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const [location, setLocation] = useLocation();
-  const { user, isLoading, oauthEnabled, login, logout, authError } = useAuth();
+  const { user, isLoading, oauthEnabled, login, logout, authError, openSignInModal } = useAuth();
   const { toast } = useToast();
   const [searchValue, setSearchValue] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -107,47 +107,47 @@ export default function Navbar() {
             </Button>
           </form>
 
-          {!isLoading && (
-            <>
-              {user ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={handleAnalyzeMyProfile}
-                    className="hidden sm:flex h-9 px-4 text-sm font-bold border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all uppercase tracking-wide"
-                  >
-                    Analyze Mine
-                  </Button>
-
-                  <div className="flex items-center gap-2 border-2 border-black bg-white px-3 py-1.5 shadow-[3px_3px_0_0_#000]">
-                    {user.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={user.username} className="w-6 h-6 border border-black" />
-                    ) : (
-                      <User className="w-4 h-4" />
-                    )}
-                    <span className="text-sm font-bold hidden md:inline">{user.username}</span>
-                  </div>
-
-                  <Button
-                    onClick={() => void logout()}
-                    size="icon"
-                    variant="ghost"
-                    title="Sign out"
-                    className="hidden sm:flex h-9 w-9 border-2 border-black rounded-none shadow-[2px_2px_0_0_#000] hover:bg-black hover:text-white transition-all"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : oauthEnabled ? (
+          {!isLoading &&
+            (user ? (
+              <div className="flex items-center gap-2">
                 <Button
-                  onClick={login}
-                  className="hidden sm:flex h-9 px-4 text-sm font-bold border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all items-center gap-2 uppercase tracking-wide"
+                  onClick={handleAnalyzeMyProfile}
+                  className="hidden sm:flex h-9 px-3.5 text-xs font-black border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[2px_2px_0_0_#000] hover:-translate-y-0.5 transition-all uppercase tracking-wide"
                 >
-                  <Github className="w-4 h-4" />
-                  Login with GitHub
+                  Analyze Mine
                 </Button>
-              ) : null}
-            </>
-          )}
+
+                <div className="flex items-center gap-1.5 border-2 border-black bg-white px-2.5 py-1 shadow-[2px_2px_0_0_#000]">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.username} className="w-5 h-5 border border-black" />
+                  ) : (
+                    <User className="w-4 h-4" />
+                  )}
+                  <span className="text-xs font-black hidden md:inline">@{user.username}</span>
+                  <span className={`text-[9px] font-black uppercase px-1 border border-black ${user.role === "pro" ? "bg-purple-300" : "bg-yellow-200"}`}>
+                    {user.role}
+                  </span>
+                </div>
+
+                <Button
+                  onClick={() => void logout()}
+                  size="icon"
+                  variant="ghost"
+                  title="Sign out"
+                  className="hidden sm:flex h-9 w-9 border-2 border-black rounded-none shadow-[2px_2px_0_0_#000] hover:bg-black hover:text-white transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={openSignInModal}
+                className="hidden sm:flex h-9 px-4 text-xs font-black border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all items-center gap-1.5 uppercase tracking-wide"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Sign In
+              </Button>
+            ))}
 
           {/* Hamburger — mobile only */}
           <button
@@ -206,11 +206,18 @@ export default function Navbar() {
             <div className="flex flex-col px-4 gap-2 pt-2 border-t-2 border-black mt-2">
               {user ? (
                 <>
-                  <div className="flex items-center gap-3 px-4 py-3 border-2 border-black bg-white shadow-[3px_3px_0_#000]">
-                    {user.avatarUrl
-                      ? <img src={user.avatarUrl} alt={user.username} className="w-7 h-7 border border-black" />
-                      : <User className="w-5 h-5" />}
-                    <span className="font-bold text-sm">{user.username}</span>
+                  <div className="flex items-center justify-between px-4 py-3 border-2 border-black bg-white shadow-[3px_3px_0_#000]">
+                    <div className="flex items-center gap-2">
+                      {user.avatarUrl ? (
+                        <img src={user.avatarUrl} alt={user.username} className="w-7 h-7 border border-black" />
+                      ) : (
+                        <User className="w-5 h-5" />
+                      )}
+                      <span className="font-bold text-sm">@{user.username}</span>
+                    </div>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 border border-black ${user.role === "pro" ? "bg-purple-300" : "bg-yellow-200"}`}>
+                      {user.role}
+                    </span>
                   </div>
                   <button
                     onClick={() => { handleAnalyzeMyProfile(); closeMenu(); }}
@@ -227,15 +234,15 @@ export default function Navbar() {
                     Sign Out
                   </button>
                 </>
-              ) : oauthEnabled ? (
+              ) : (
                 <button
-                  onClick={() => { login(); closeMenu(); }}
-                  className="flex items-center gap-3 px-4 py-3 font-bold text-sm uppercase tracking-wide border-2 border-black bg-white hover:bg-black hover:text-white shadow-[3px_3px_0_#000] transition-all"
+                  onClick={() => { openSignInModal(); closeMenu(); }}
+                  className="flex items-center gap-3 px-4 py-3 font-bold text-sm uppercase tracking-wide border-2 border-black bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_#000] transition-all"
                 >
-                  <Github className="w-4 h-4" />
-                  Login with GitHub
+                  <Lock className="w-4 h-4" />
+                  Sign In
                 </button>
-              ) : null}
+              )}
             </div>
           )}
         </div>
