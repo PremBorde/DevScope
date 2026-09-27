@@ -450,8 +450,8 @@ export default function Analyze() {
   return (
     <PageTransition>
       <div ref={pageRef} className="space-y-8 pb-16 max-w-7xl mx-auto px-2 sm:px-4">
-        {/* Sticky top sub-header */}
-        <div className="border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0_#000] flex items-center justify-between sticky top-20 z-40">
+        {/* Top actions sub-header */}
+        <div className="border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0_#000] flex items-center justify-between">
           <button
             onClick={() => setLocation("/")}
             className="flex items-center gap-2 font-heading font-black uppercase text-xs hover:text-primary transition-colors tracking-wider"

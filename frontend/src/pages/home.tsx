@@ -386,12 +386,12 @@ export default function Home() {
                 </Button>
               ) : (
                 <Button
-                  onClick={openSignInModal}
+                  onClick={() => openSignInModal("login")}
                   variant="outline"
                   className="h-11 px-6 text-sm font-black border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white shadow-[3px_3px_0_#000] hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wide"
                 >
                   <Lock className="w-4 h-4" />
-                  Sign In (Instant or OAuth)
+                  Sign In / Register
                 </Button>
               )}
 

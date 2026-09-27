@@ -7,17 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Github,
-  Zap,
-  KeyRound,
+  Lock,
+  Mail,
+  User,
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  Lock,
+  UserPlus,
+  LogIn,
   Layers,
-  Award,
   Sparkles,
-  UserCheck,
+  Award,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -27,50 +28,81 @@ export default function LoginPage() {
     user,
     oauthEnabled,
     loginWithOAuth,
-    loginAsDeveloper,
-    loginWithPAT,
+    register,
+    loginWithCredentials,
     loginAsDemo,
     logout,
   } = useAuth();
 
-  const [tab, setTab] = useState<"dev" | "oauth" | "pat" | "demo">("dev");
-  const [username, setUsername] = useState("");
-  const [pat, setPat] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
+
+  // Sign in state
+  const [identifier, setIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // Register state
+  const [regUsername, setRegUsername] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [regGithubUsername, setRegGithubUsername] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleDevSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!identifier.trim() || !loginPassword.trim()) return;
     setLoading(true);
     setError(null);
 
-    const res = await loginAsDeveloper(username.trim());
+    const res = await loginWithCredentials({
+      identifier: identifier.trim(),
+      password: loginPassword.trim(),
+    });
     setLoading(false);
 
     if (res.success) {
-      setSuccessMsg(`Welcome, @${username.trim()}! Authenticated as Developer.`);
-      setTimeout(() => setLocation(`/analyze/${username.trim()}`), 1000);
+      setSuccessMsg("Signed in successfully!");
+      setTimeout(() => setLocation("/dashboard"), 900);
     } else {
-      setError(res.error || "Failed to sign in");
+      setError(res.error || "Invalid username or password");
     }
   };
 
-  const handlePatSubmit = async (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pat.trim()) return;
+    if (!regUsername.trim() || !regEmail.trim() || !regPassword.trim()) return;
+
+    if (regPassword !== regConfirmPassword) {
+      setError("Passwords do not match. Please re-enter.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    const res = await loginWithPAT(pat.trim());
+    const res = await register({
+      username: regUsername.trim(),
+      email: regEmail.trim(),
+      password: regPassword.trim(),
+      confirmPassword: regConfirmPassword.trim(),
+      githubUsername: regGithubUsername.trim() || undefined,
+    });
     setLoading(false);
 
     if (res.success) {
-      setSuccessMsg("Pro Tier verified! Unlimited AI rate limits & private repo access enabled.");
-      setTimeout(() => setLocation("/dashboard"), 1000);
+      setSuccessMsg("Account registered and authenticated successfully!");
+      setTimeout(() => {
+        if (regGithubUsername.trim()) {
+          setLocation(`/analyze/${regGithubUsername.trim()}`);
+        } else {
+          setLocation("/dashboard");
+        }
+      }, 1000);
     } else {
-      setError(res.error || "Invalid Personal Access Token");
+      setError(res.error || "Registration failed");
     }
   };
 
@@ -92,96 +124,84 @@ export default function LoginPage() {
     <PageTransition>
       <div className="min-h-screen bg-background flex flex-col justify-center items-center px-4 py-12">
         <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch">
-          {/* Left Column: Why Sign In & Role Info (5 cols) */}
+          {/* Left Column: Platform Security & Access Benefits (5 cols) */}
           <div className="md:col-span-5 border-4 border-black bg-white p-8 shadow-[8px_8px_0_#000] flex flex-col justify-between">
             <div>
               <div className="inline-flex items-center gap-1.5 border border-black bg-primary px-3 py-1 font-heading font-black text-xs uppercase mb-4 shadow-[2px_2px_0_#000]">
-                <Lock className="w-3.5 h-3.5" />
-                Access Control
+                <ShieldCheck className="w-3.5 h-3.5" />
+                DevScope Security
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-heading font-black uppercase leading-tight tracking-tight mb-3">
-                Sign In to DevScope
+                {mode === "login" ? "Welcome Back" : "Create Account"}
               </h1>
               <p className="text-xs text-muted-foreground font-semibold leading-relaxed mb-6">
-                Authenticate your GitHub identity to unlock cloud persistence, personalized career roadmaps, and recruiter screen tools.
+                Register or sign in to save your personal 30-day growth plans, track milestone progress, and generate recruiter-grade portfolio assets.
               </p>
 
               <div className="space-y-4">
                 <div className="border-2 border-black p-3 bg-yellow-50 shadow-[2px_2px_0_#000]">
-                  <p className="font-heading font-black text-xs uppercase text-primary mb-1">
-                    ⚡ Developer Tier (Free)
+                  <p className="font-heading font-black text-xs uppercase text-primary mb-1 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" />
+                    Persistent 30-Day Roadmaps
                   </p>
                   <p className="text-[11px] font-medium text-black/80">
-                    Save 30-day roadmap progress, customize README badges, and access interview prep.
+                    Check off weekly engineering tasks that save automatically to your account across visits.
                   </p>
                 </div>
 
                 <div className="border-2 border-black p-3 bg-purple-50 shadow-[2px_2px_0_#000]">
-                  <p className="font-heading font-black text-xs uppercase text-purple-700 mb-1">
-                    💎 Pro Tier (PAT or Verified)
+                  <p className="font-heading font-black text-xs uppercase text-purple-700 mb-1 flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5" />
+                    Verified GitHub README Badge
                   </p>
                   <p className="text-[11px] font-medium text-black/80">
-                    5,000 req/hr rate limits, private repository audits, and high-frequency AI regeneration.
+                    Generate an official SVG score badge embeddable on your GitHub profile markdown.
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="mt-8 pt-4 border-t-2 border-black flex items-center justify-between text-xs font-bold text-muted-foreground">
-              <span>Zero plain text storage</span>
-              <span className="text-black">100% Unbiased Audits</span>
+              <span>PBKDF2/SHA-512 Security</span>
+              <span className="text-black">100% Free Forever</span>
             </div>
           </div>
 
-          {/* Right Column: Interactive Sign In Box (7 cols) */}
+          {/* Right Column: Sign In / Register Card (7 cols) */}
           <div className="md:col-span-7 border-4 border-black bg-white p-8 shadow-[8px_8px_0_#000] flex flex-col justify-between">
             <div>
-              {/* Tab Selector */}
-              <div className="grid grid-cols-4 gap-1 border-2 border-black p-1 bg-gray-100 mb-6">
+              {/* Top Mode Tabs */}
+              <div className="grid grid-cols-2 gap-2 border-2 border-black p-1 bg-gray-100 mb-6">
                 <button
                   type="button"
-                  onClick={() => setTab("dev")}
-                  className={`py-2 text-xs font-heading font-black uppercase transition-all ${
-                    tab === "dev"
-                      ? "bg-primary text-black border border-black shadow-[2px_2px_0_#000]"
+                  onClick={() => {
+                    setMode("login");
+                    setError(null);
+                  }}
+                  className={`py-2 text-xs font-heading font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
+                    mode === "login"
+                      ? "bg-primary text-black border-2 border-black shadow-[2px_2px_0_#000]"
                       : "bg-transparent text-muted-foreground hover:text-black"
                   }`}
                 >
-                  ⚡ Dev
+                  <LogIn className="w-3.5 h-3.5" />
+                  Sign In
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTab("oauth")}
-                  className={`py-2 text-xs font-heading font-black uppercase transition-all ${
-                    tab === "oauth"
-                      ? "bg-primary text-black border border-black shadow-[2px_2px_0_#000]"
+                  onClick={() => {
+                    setMode("register");
+                    setError(null);
+                  }}
+                  className={`py-2 text-xs font-heading font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
+                    mode === "register"
+                      ? "bg-primary text-black border-2 border-black shadow-[2px_2px_0_#000]"
                       : "bg-transparent text-muted-foreground hover:text-black"
                   }`}
                 >
-                  🐙 OAuth
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab("pat")}
-                  className={`py-2 text-xs font-heading font-black uppercase transition-all ${
-                    tab === "pat"
-                      ? "bg-primary text-black border border-black shadow-[2px_2px_0_#000]"
-                      : "bg-transparent text-muted-foreground hover:text-black"
-                  }`}
-                >
-                  🔑 Pro PAT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab("demo")}
-                  className={`py-2 text-xs font-heading font-black uppercase transition-all ${
-                    tab === "demo"
-                      ? "bg-primary text-black border border-black shadow-[2px_2px_0_#000]"
-                      : "bg-transparent text-muted-foreground hover:text-black"
-                  }`}
-                >
-                  🚀 Demo
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Register Account
                 </button>
               </div>
 
@@ -199,28 +219,40 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Tab 1: Instant Developer Sign In */}
-              {tab === "dev" && (
-                <form onSubmit={handleDevSubmit} className="space-y-4">
+              {/* TAB 1: SIGN IN */}
+              {mode === "login" && (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-black uppercase tracking-wider block">
-                      GitHub Username
+                      Username or Email
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">
-                        @
-                      </span>
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="torvalds, gaearon, or your username"
-                        className="h-12 pl-9 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="e.g. torvalds or dev@company.com"
+                        className="h-12 pl-10 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium"
                         required
                       />
                     </div>
-                    <p className="text-[11px] text-muted-foreground font-semibold">
-                      Queries GitHub's public API to authenticate your account and sync your avatar.
-                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black uppercase tracking-wider block">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="h-12 pl-10 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium"
+                        required
+                      />
+                    </div>
                   </div>
 
                   <Button
@@ -228,113 +260,160 @@ export default function LoginPage() {
                     disabled={loading}
                     className="w-full h-12 border-3 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white font-black uppercase tracking-wider shadow-[4px_4px_0_#000] hover:-translate-y-0.5 transition-all text-sm"
                   >
-                    {loading ? "Verifying Account…" : "Sign In As Developer →"}
+                    {loading ? "Authenticating…" : "Sign In →"}
                   </Button>
-                </form>
-              )}
 
-              {/* Tab 2: GitHub OAuth */}
-              {tab === "oauth" && (
-                <div className="space-y-4 text-center">
-                  <div className="border-2 border-black bg-zinc-50 p-4 text-left">
-                    <div className="flex items-center gap-2 mb-2 font-heading font-black text-sm uppercase">
-                      <ShieldCheck className="w-4 h-4 text-green-600" />
-                      GitHub OAuth Strategy
+                  <div className="relative my-3">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-black/20" />
                     </div>
-                    <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                      Uses standard GitHub OAuth to grant secure, read-only session credentials for your account.
-                    </p>
+                    <div className="relative flex justify-center text-[10px] uppercase font-black">
+                      <span className="bg-white px-2 text-muted-foreground">Or Connect With</span>
+                    </div>
                   </div>
 
                   <Button
+                    type="button"
                     onClick={loginWithOAuth}
-                    className="w-full h-13 border-3 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase tracking-wider shadow-[4px_4px_0_#000] hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                    className="w-full h-11 border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase tracking-wider shadow-[2px_2px_0_#000] flex items-center justify-center gap-2 text-xs"
                   >
-                    <Github className="w-5 h-5" />
+                    <Github className="w-4 h-4" />
                     Sign In with GitHub OAuth
                   </Button>
 
-                  {!oauthEnabled && (
-                    <p className="text-[11px] text-muted-foreground font-bold uppercase">
-                      OAuth keys not set up on this instance? Switch to "⚡ Dev" tab for instant sign-in.
-                    </p>
-                  )}
-                </div>
+                  <div className="text-center pt-2">
+                    <span className="text-xs text-muted-foreground font-semibold">
+                      New to DevScope?{" "}
+                      <button
+                        type="button"
+                        onClick={() => setMode("register")}
+                        className="font-bold text-black underline uppercase"
+                      >
+                        Create account
+                      </button>
+                    </span>
+                  </div>
+                </form>
               )}
 
-              {/* Tab 3: Personal Access Token */}
-              {tab === "pat" && (
-                <form onSubmit={handlePatSubmit} className="space-y-4">
-                  <div className="border-2 border-black bg-purple-50 p-3">
-                    <p className="text-xs font-bold text-purple-900">
-                      ⚡ Unlock Pro Tier: 5,000 req/hr & Private Repo Auditing
-                    </p>
+              {/* TAB 2: REGISTER */}
+              {mode === "register" && (
+                <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase tracking-wider block">
+                        Desired Username *
+                      </label>
+                      <Input
+                        value={regUsername}
+                        onChange={(e) => setRegUsername(e.target.value)}
+                        placeholder="e.g. janesmith"
+                        className="h-11 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium text-xs"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase tracking-wider block">
+                        Email Address *
+                      </label>
+                      <Input
+                        type="email"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="jane@company.com"
+                        className="h-11 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium text-xs"
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase tracking-wider block">
+                        Password *
+                      </label>
+                      <Input
+                        type="password"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Min 6 characters"
+                        className="h-11 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium text-xs"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase tracking-wider block">
+                        Confirm Password *
+                      </label>
+                      <Input
+                        type="password"
+                        value={regConfirmPassword}
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        placeholder="Repeat password"
+                        className="h-11 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium text-xs"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-xs font-black uppercase tracking-wider block">
-                      GitHub Personal Access Token (PAT)
+                      Link Public GitHub Profile (Optional)
                     </label>
-                    <Input
-                      type="password"
-                      value={pat}
-                      onChange={(e) => setPat(e.target.value)}
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                      className="h-12 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-mono text-xs"
-                      required
-                    />
-                    <p className="text-[10px] text-muted-foreground font-semibold">
-                      Tokens are validated directly with GitHub API and signed into your secure session.
-                    </p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-xs">
+                        @
+                      </span>
+                      <Input
+                        value={regGithubUsername}
+                        onChange={(e) => setRegGithubUsername(e.target.value)}
+                        placeholder="GitHub handle (auto-syncs your real avatar & repos)"
+                        className="h-11 pl-7 border-2 border-black rounded-none shadow-[2px_2px_0_#000] focus-visible:ring-0 bg-white font-medium text-xs"
+                      />
+                    </div>
                   </div>
 
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-12 border-3 border-black rounded-none bg-purple-400 text-black hover:bg-black hover:text-white font-black uppercase tracking-wider shadow-[4px_4px_0_#000] hover:-translate-y-0.5 transition-all text-sm"
+                    className="w-full h-12 border-3 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white font-black uppercase tracking-wider shadow-[4px_4px_0_#000] hover:-translate-y-0.5 transition-all text-sm mt-1"
                   >
-                    {loading ? "Validating PAT…" : "Authenticate Pro Tier →"}
+                    {loading ? "Creating Account…" : "Register Developer Account →"}
                   </Button>
+
+                  <div className="text-center pt-2">
+                    <span className="text-xs text-muted-foreground font-semibold">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => setMode("login")}
+                        className="font-bold text-black underline uppercase"
+                      >
+                        Sign in
+                      </button>
+                    </span>
+                  </div>
                 </form>
               )}
 
-              {/* Tab 4: Demo Profiles */}
-              {tab === "demo" && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground font-semibold mb-2">
-                    Pick a live developer profile to evaluate the platform immediately:
-                  </p>
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {[
-                      { username: "torvalds", name: "Linus Torvalds", role: "Pro Tier (Kernel Maintainer)" },
-                      { username: "gaearon", name: "Dan Abramov", role: "Developer (React Core)" },
-                      { username: "shadcn", name: "shadcn", role: "Developer (UI Architect)" },
-                    ].map((demo) => (
-                      <button
-                        key={demo.username}
-                        type="button"
-                        onClick={() => handleDemoClick(demo.username)}
-                        className="flex items-center justify-between p-3 border-2 border-black bg-gray-50 hover:bg-yellow-100 transition-all text-left shadow-[2px_2px_0_#000] hover:-translate-y-0.5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={`https://github.com/${demo.username}.png`}
-                            alt={demo.username}
-                            className="w-9 h-9 border border-black rounded-none"
-                          />
-                          <div>
-                            <p className="font-heading font-black text-xs uppercase">{demo.name}</p>
-                            <p className="text-[10px] text-muted-foreground">@{demo.username} · {demo.role}</p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-black text-primary flex items-center gap-1">
-                          Sign In <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+              {/* Quick Demo Test Profiles */}
+              <div className="mt-6 pt-3 border-t border-black/15 flex items-center justify-between text-xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Recruiter 1-Click Demo:</span>
+                <div className="flex gap-1.5">
+                  {["torvalds", "gaearon", "shadcn"].map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => handleDemoClick(u)}
+                      className="px-2 py-0.5 border border-black bg-gray-100 hover:bg-yellow-200 text-[10px] font-black uppercase transition-all shadow-[1px_1px_0_#000]"
+                    >
+                      @{u}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Currently Logged In State */}

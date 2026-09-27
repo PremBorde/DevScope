@@ -1571,5 +1571,43 @@ Implemented a complete, multi-strategy Authentication and Role-Based Access Cont
 - **`useAuth.ts`**:
   - Added `loginAsDeveloper()`, `loginWithPAT()`, `loginAsDemo()`, `openSignInModal()`, `hasPermission()`, and `isPro`.
 
+---
+
+<a name="update-16"></a>
+## Update 16 — User Registration Flow & Analyze Header Overlap Fix
+
+**Date:** September 27, 2026
+**Type:** Bug Fix & Core Auth Flow
+
+---
+
+### Overview
+
+Added complete User Registration (Sign Up) with email, username, secure PBKDF2/SHA-512 password hashing, and optional GitHub profile auto-syncing alongside standard Sign In. Fixed the layout bug on the Analyze page where the sub-header with `sticky top-20` caused the top card row to be sliced in half when scrolling.
+
+---
+
+### 1. Fix Analyze Page Sliced Card / Overlap Bug (`frontend/src/pages/analyze.tsx`)
+- Removed `sticky top-20 z-40` on the report actions sub-header ("Back to Search", "Share Report", "Hiring Verdict").
+- Converted it to a static header with clean borders and natural layout flow, eliminating the visual clipping where the developer's profile card got sliced in half under the sticky navbar during scroll.
+
+---
+
+### 2. Full User Registration System (`POST /api/auth/register`)
+- Added `email` and `passwordHash` to the `@workspace/db` schema (`users.ts`).
+- Cryptographic password hashing using Node's standard `crypto.pbkdf2Sync` (100,000 iterations, 64-byte salt, sha512).
+- Validates username format, email uniqueness, password strength (minimum 6 characters), and password matching.
+- Optional `githubUsername` parameter automatically queries GitHub API to fetch and link their real avatar and repositories.
+- Upon registration, automatically creates the session and returns signed JWT token.
+
+---
+
+### 3. Dual-Tab Auth Modal & Login Page
+- Rebuilt `SignInModal.tsx` and `login.tsx` with primary dual tabs:
+  - **`Sign In`**: Username/Email + Password, 1-click GitHub OAuth, or 1-click demo profiles.
+  - **`Create Account (Register)`**: Desired Username, Email, Password, Confirm Password, optional GitHub profile link.
+- Updated `Navbar.tsx` to provide both **"Sign In"** and **"Register"** entry points on desktop and mobile drawer.
+
+
 
 

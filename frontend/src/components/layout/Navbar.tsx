@@ -140,13 +140,22 @@ export default function Navbar() {
                 </Button>
               </div>
             ) : (
-              <Button
-                onClick={openSignInModal}
-                className="hidden sm:flex h-9 px-4 text-xs font-black border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_0_#000] hover:-translate-y-0.5 transition-all items-center gap-1.5 uppercase tracking-wide"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                Sign In
-              </Button>
+              <div className="hidden sm:flex items-center gap-2">
+                <Button
+                  onClick={() => openSignInModal("login")}
+                  variant="ghost"
+                  className="h-9 px-3 text-xs font-bold border-2 border-transparent hover:border-black hover:bg-white rounded-none transition-all uppercase tracking-wide"
+                >
+                  Sign In
+                </Button>
+                <Button
+                  onClick={() => openSignInModal("register")}
+                  className="h-9 px-3.5 text-xs font-black border-2 border-black rounded-none bg-primary text-black hover:bg-black hover:text-white shadow-[2px_2px_0_0_#000] hover:-translate-y-0.5 transition-all items-center gap-1.5 uppercase tracking-wide"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Register
+                </Button>
+              </div>
             ))}
 
           {/* Hamburger — mobile only */}
@@ -235,13 +244,21 @@ export default function Navbar() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => { openSignInModal(); closeMenu(); }}
-                  className="flex items-center gap-3 px-4 py-3 font-bold text-sm uppercase tracking-wide border-2 border-black bg-primary text-black hover:bg-black hover:text-white shadow-[3px_3px_0_#000] transition-all"
-                >
-                  <Lock className="w-4 h-4" />
-                  Sign In
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => { openSignInModal("login"); closeMenu(); }}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 font-bold text-xs uppercase tracking-wide border-2 border-black bg-white hover:bg-primary transition-all shadow-[2px_2px_0_#000]"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => { openSignInModal("register"); closeMenu(); }}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 font-black text-xs uppercase tracking-wide border-2 border-black bg-primary text-black hover:bg-black hover:text-white transition-all shadow-[2px_2px_0_#000]"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    Register Free
+                  </button>
+                </div>
               )}
             </div>
           )}

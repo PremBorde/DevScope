@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 
 export interface AuthUser {
   id: string;
-  githubId: string;
+  githubId?: string | null;
   username: string;
+  email?: string | null;
   displayName: string | null;
   avatarUrl: string;
   profileUrl: string;
@@ -46,12 +47,12 @@ export function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Global modal bus for opening Sign In dialog from any button
-type AuthModalListener = (open: boolean) => void;
+// Global modal bus for opening Sign In / Register dialog
+type AuthModalListener = (open: boolean, tab?: "login" | "register") => void;
 const modalListeners = new Set<AuthModalListener>();
 
 export const authModal = {
-  open: () => modalListeners.forEach((fn) => fn(true)),
+  open: (tab: "login" | "register" = "login") => modalListeners.forEach((fn) => fn(true, tab)),
   close: () => modalListeners.forEach((fn) => fn(false)),
   subscribe: (fn: AuthModalListener) => {
     modalListeners.add(fn);
@@ -123,62 +124,77 @@ export function useAuth() {
     window.location.href = apiUrl("/api/auth/github");
   }, []);
 
-  const loginAsDeveloper = useCallback(async (username: string) => {
-    try {
-      const res = await fetch(apiUrl("/api/auth/signin/developer"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username }),
-      });
+  // Register New Account
+  const register = useCallback(
+    async (data: {
+      username: string;
+      email: string;
+      password: string;
+      confirmPassword?: string;
+      githubUsername?: string;
+    }) => {
+      try {
+        const res = await fetch(apiUrl("/api/auth/register"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data),
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to sign in");
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.message || "Registration failed");
+        }
+
+        if (json.token) {
+          setAuthToken(json.token);
+        }
+        setState((prev) => ({
+          ...prev,
+          user: json.user,
+          authError: null,
+        }));
+        return { success: true, message: json.message };
+      } catch (err: any) {
+        return { success: false, error: err.message || "Registration failed" };
       }
+    },
+    []
+  );
 
-      if (data.token) {
-        setAuthToken(data.token);
+  // Sign In with Username/Email + Password
+  const loginWithCredentials = useCallback(
+    async (data: { identifier: string; password: string }) => {
+      try {
+        const res = await fetch(apiUrl("/api/auth/login"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data),
+        });
+
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.message || "Invalid credentials");
+        }
+
+        if (json.token) {
+          setAuthToken(json.token);
+        }
+        setState((prev) => ({
+          ...prev,
+          user: json.user,
+          authError: null,
+        }));
+        return { success: true, message: json.message };
+      } catch (err: any) {
+        return { success: false, error: err.message || "Sign in failed" };
       }
-      setState((prev) => ({
-        ...prev,
-        user: data.user,
-        authError: null,
-      }));
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || "Sign in failed" };
-    }
-  }, []);
+    },
+    []
+  );
 
-  const loginWithPAT = useCallback(async (pat: string) => {
-    try {
-      const res = await fetch(apiUrl("/api/auth/signin/pat"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ pat }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "Invalid Personal Access Token");
-      }
-
-      if (data.token) {
-        setAuthToken(data.token);
-      }
-      setState((prev) => ({
-        ...prev,
-        user: data.user,
-        authError: null,
-      }));
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || "PAT verification failed" };
-    }
-  }, []);
-
+  // 1-Click Demo Profiles
   const loginAsDemo = useCallback(async (username: string) => {
     try {
       const res = await fetch(apiUrl("/api/auth/signin/demo"), {
@@ -188,17 +204,17 @@ export function useAuth() {
         body: JSON.stringify({ username }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "Demo sign in failed");
+        throw new Error(json.message || "Demo sign in failed");
       }
 
-      if (data.token) {
-        setAuthToken(data.token);
+      if (json.token) {
+        setAuthToken(json.token);
       }
       setState((prev) => ({
         ...prev,
-        user: data.user,
+        user: json.user,
         authError: null,
       }));
       return { success: true };
@@ -230,26 +246,18 @@ export function useAuth() {
     [state.user]
   );
 
-  const isRole = useCallback(
-    (role: string) => {
-      return state.user?.role === role;
-    },
-    [state.user]
-  );
-
   const isPro = state.user?.role === "pro" || state.user?.role === "admin";
 
   return {
     ...state,
     login: loginWithOAuth,
     loginWithOAuth,
-    loginAsDeveloper,
-    loginWithPAT,
+    register,
+    loginWithCredentials,
     loginAsDemo,
     logout,
     hasPermission,
-    isRole,
     isPro,
-    openSignInModal: authModal.open,
+    openSignInModal: (tab: "login" | "register" = "login") => authModal.open(tab),
   };
 }

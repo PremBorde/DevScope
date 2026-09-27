@@ -3,7 +3,7 @@ import passport from "passport";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
 import { db, users } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 
 const router = Router();
 
@@ -16,11 +16,31 @@ const TOKEN_SECRET = process.env.SESSION_SECRET || "devscope-fallback-secret-key
 // In-memory fallback user cache for resilience
 const userStore = new Map<string, any>();
 
+// ── Password Hashing & Verification (PBKDF2/SHA-512 NIST Standard) ──────────
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, storedHash: string): boolean {
+  try {
+    const [salt, hash] = storedHash.split(":");
+    if (!salt || !hash) return false;
+    const computed = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+    return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(computed, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+// ── Token Management ────────────────────────────────────────────────────────
 export function createAuthToken(user: any): string {
   const payload = JSON.stringify({
     id: user.id || `user_${user.username}`,
     githubId: String(user.githubId || user.id || ""),
     username: user.username,
+    email: user.email || null,
     displayName: user.displayName || null,
     avatarUrl: user.avatarUrl || null,
     profileUrl: user.profileUrl || `https://github.com/${user.username}`,
@@ -81,7 +101,7 @@ function requireOAuth(req: Request, res: Response, next: NextFunction): void {
   if (!OAUTH_ENABLED) {
     res.status(503).json({
       error: "oauth_disabled",
-      message: "GitHub OAuth is not configured on this server. Use instant Developer Sign-In instead.",
+      message: "GitHub OAuth is not configured on this server. Please use standard registration & login.",
     });
     return;
   }
@@ -89,84 +109,369 @@ function requireOAuth(req: Request, res: Response, next: NextFunction): void {
 }
 
 /**
- * Upserts user in database with fallback to in-memory store
+ * Helper to fetch public avatar from GitHub API or fall back to avatar URL
  */
-async function persistUser(userData: {
-  githubId: string;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  profileUrl: string | null;
-  role?: "developer" | "pro" | "admin";
-}) {
-  const role = userData.role || "developer";
-  const permissions =
-    role === "pro" || role === "admin"
-      ? [
-          "roadmap:save",
-          "interview:generate",
-          "resume:generate",
-          "badge:embed",
-          "dashboard:history",
-          "pro:unlimited_ai",
-          "pro:private_repos",
-        ]
-      : [
-          "roadmap:save",
-          "interview:generate",
-          "resume:generate",
-          "badge:embed",
-          "dashboard:history",
-        ];
+async function fetchGithubProfileInfo(ghUsername: string) {
+  const clean = ghUsername.trim().replace(/^@/, "");
+  if (!clean) return null;
+  try {
+    const headers: Record<string, string> = {
+      "User-Agent": "DevScope-AI-Platform/2.6",
+      Accept: "application/vnd.github.v3+json",
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+    }
+    const res = await fetch(`https://api.github.com/users/${encodeURIComponent(clean)}`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        githubId: String(data.id || ""),
+        displayName: data.name || clean,
+        avatarUrl: data.avatar_url || `https://github.com/${clean}.png`,
+        profileUrl: data.html_url || `https://github.com/${clean}`,
+      };
+    }
+  } catch {
+    // fallback
+  }
+  return {
+    githubId: `gh_${clean}`,
+    displayName: clean,
+    avatarUrl: `https://github.com/${clean}.png`,
+    profileUrl: `https://github.com/${clean}`,
+  };
+}
+
+// ── POST /api/auth/register ───────────────────────────────────────────────
+// User Registration
+router.post("/register", async (req: Request, res: Response) => {
+  const { username, email, password, confirmPassword, githubUsername } = req.body as {
+    username?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+    githubUsername?: string;
+  };
+
+  const cleanUsername = String(username ?? "").trim().toLowerCase();
+  const cleanEmail = String(email ?? "").trim().toLowerCase();
+  const rawPassword = String(password ?? "").trim();
+
+  // 1. Validation
+  if (!cleanUsername || cleanUsername.length < 3) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Username must be at least 3 characters long.",
+    });
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Username can only contain alphanumeric characters, hyphens, and underscores.",
+    });
+  }
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Please provide a valid email address.",
+    });
+  }
+  if (!rawPassword || rawPassword.length < 6) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Password must be at least 6 characters long.",
+    });
+  }
+  if (confirmPassword && rawPassword !== String(confirmPassword).trim()) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Passwords do not match.",
+    });
+  }
 
   try {
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(eq(users.githubId, userData.githubId));
-
-    if (existing) {
-      const [updated] = await db
-        .update(users)
-        .set({
-          username: userData.username,
-          displayName: userData.displayName,
-          avatarUrl: userData.avatarUrl,
-          profileUrl: userData.profileUrl,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.githubId, userData.githubId))
-        .returning();
-
-      return { ...updated, role, permissions };
+    // 2. Check if username or email already registered
+    let existingUser = null;
+    try {
+      const [dbUser] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.username, cleanUsername), eq(users.email, cleanEmail)));
+      existingUser = dbUser;
+    } catch {
+      // Memory fallback
+      existingUser = Array.from(userStore.values()).find(
+        (u) => u.username.toLowerCase() === cleanUsername || (u.email && u.email.toLowerCase() === cleanEmail)
+      );
     }
 
-    const [created] = await db
-      .insert(users)
-      .values({
-        githubId: userData.githubId,
-        username: userData.username,
-        displayName: userData.displayName,
-        avatarUrl: userData.avatarUrl,
-        profileUrl: userData.profileUrl,
-      })
-      .returning();
+    if (existingUser) {
+      return res.status(409).json({
+        error: "already_exists",
+        message: "An account with this username or email already exists. Please sign in instead.",
+      });
+    }
 
-    return { ...created, role, permissions };
-  } catch (err) {
-    logger.warn({ err }, "Database user upsert failed, using memory fallback");
-    const memUser = {
-      id: `usr_${userData.githubId}`,
-      ...userData,
-      role,
-      permissions,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    userStore.set(userData.username.toLowerCase(), memUser);
-    return memUser;
+    // 3. Resolve profile details (sync with GitHub if specified or if username matches)
+    const ghTarget = githubUsername?.trim() || cleanUsername;
+    const ghInfo = await fetchGithubProfileInfo(ghTarget);
+
+    const passwordHash = hashPassword(rawPassword);
+    const role = "developer";
+    const permissions = [
+      "roadmap:save",
+      "interview:generate",
+      "resume:generate",
+      "badge:embed",
+      "dashboard:history",
+    ];
+
+    let createdUser: any = null;
+    try {
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          username: cleanUsername,
+          email: cleanEmail,
+          passwordHash,
+          githubId: ghInfo?.githubId || null,
+          displayName: ghInfo?.displayName || cleanUsername,
+          avatarUrl: ghInfo?.avatarUrl || `https://github.com/${cleanUsername}.png`,
+          profileUrl: ghInfo?.profileUrl || `https://github.com/${cleanUsername}`,
+          role,
+        })
+        .returning();
+      createdUser = { ...newUser, permissions };
+    } catch (err) {
+      logger.warn({ err }, "Database user insert failed, using memory store");
+      createdUser = {
+        id: `usr_${cleanUsername}_${Date.now()}`,
+        username: cleanUsername,
+        email: cleanEmail,
+        passwordHash,
+        githubId: ghInfo?.githubId || null,
+        displayName: ghInfo?.displayName || cleanUsername,
+        avatarUrl: ghInfo?.avatarUrl || `https://github.com/${cleanUsername}.png`,
+        profileUrl: ghInfo?.profileUrl || `https://github.com/${cleanUsername}`,
+        role,
+        permissions,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      userStore.set(cleanUsername, createdUser);
+    }
+
+    // 4. Issue session and JWT
+    req.logIn(createdUser, (err) => {
+      if (err) logger.warn({ err }, "Session login warning during registration");
+    });
+
+    const token = createAuthToken(createdUser);
+    logger.info({ username: cleanUsername, email: cleanEmail }, "User registered successfully");
+
+    return res.status(201).json({
+      success: true,
+      message: "Account registered successfully!",
+      token,
+      user: {
+        id: createdUser.id,
+        username: createdUser.username,
+        email: createdUser.email,
+        displayName: createdUser.displayName,
+        avatarUrl: createdUser.avatarUrl,
+        profileUrl: createdUser.profileUrl,
+        role: createdUser.role,
+        permissions,
+      },
+    });
+  } catch (err: any) {
+    logger.error({ err }, "Error during registration");
+    return res.status(500).json({
+      error: "registration_failed",
+      message: err.message || "Failed to create account. Please try again.",
+    });
   }
-}
+});
+
+// ── POST /api/auth/login ──────────────────────────────────────────────────
+// User Sign-In (with Username/Email & Password)
+router.post("/login", async (req: Request, res: Response) => {
+  const { identifier, password } = req.body as {
+    identifier?: string;
+    password?: string;
+  };
+
+  const cleanIdentifier = String(identifier ?? "").trim().toLowerCase();
+  const rawPassword = String(password ?? "").trim();
+
+  if (!cleanIdentifier) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Username or email is required.",
+    });
+  }
+  if (!rawPassword) {
+    return res.status(400).json({
+      error: "validation_error",
+      message: "Password is required.",
+    });
+  }
+
+  try {
+    let foundUser: any = null;
+    try {
+      const [dbUser] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.username, cleanIdentifier), eq(users.email, cleanIdentifier)));
+      foundUser = dbUser;
+    } catch {
+      foundUser = Array.from(userStore.values()).find(
+        (u) =>
+          u.username.toLowerCase() === cleanIdentifier ||
+          (u.email && u.email.toLowerCase() === cleanIdentifier)
+      );
+    }
+
+    if (!foundUser) {
+      return res.status(401).json({
+        error: "invalid_credentials",
+        message: "No account found with this username or email. Please register first.",
+      });
+    }
+
+    if (!foundUser.passwordHash) {
+      return res.status(400).json({
+        error: "oauth_account",
+        message: "This account was registered via GitHub OAuth. Please sign in using GitHub.",
+      });
+    }
+
+    // Verify Password
+    const isValid = verifyPassword(rawPassword, foundUser.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({
+        error: "invalid_credentials",
+        message: "Incorrect password. Please try again.",
+      });
+    }
+
+    const role = foundUser.role || "developer";
+    const permissions =
+      role === "pro" || role === "admin"
+        ? [
+            "roadmap:save",
+            "interview:generate",
+            "resume:generate",
+            "badge:embed",
+            "dashboard:history",
+            "pro:unlimited_ai",
+            "pro:private_repos",
+          ]
+        : [
+            "roadmap:save",
+            "interview:generate",
+            "resume:generate",
+            "badge:embed",
+            "dashboard:history",
+          ];
+
+    foundUser.permissions = permissions;
+
+    req.logIn(foundUser, (err) => {
+      if (err) logger.warn({ err }, "Session login warning during signin");
+    });
+
+    const token = createAuthToken(foundUser);
+    logger.info({ username: foundUser.username }, "User signed in successfully");
+
+    return res.json({
+      success: true,
+      message: "Signed in successfully!",
+      token,
+      user: {
+        id: foundUser.id,
+        username: foundUser.username,
+        email: foundUser.email,
+        displayName: foundUser.displayName,
+        avatarUrl: foundUser.avatarUrl,
+        profileUrl: foundUser.profileUrl,
+        role: foundUser.role,
+        permissions,
+      },
+    });
+  } catch (err: any) {
+    logger.error({ err }, "Error during login");
+    return res.status(500).json({
+      error: "login_failed",
+      message: err.message || "Failed to sign in. Please try again.",
+    });
+  }
+});
+
+// ── POST /api/auth/signin/demo ────────────────────────────────────────────
+// 1-Click Demo Profiles (For Recruiters / Quick Evaluation)
+router.post("/signin/demo", async (req: Request, res: Response) => {
+  const { username } = req.body as { username?: string };
+  const target = String(username ?? "torvalds").toLowerCase();
+
+  const DEMO_PROFILES: Record<string, any> = {
+    torvalds: {
+      githubId: "1024025",
+      username: "torvalds",
+      email: "torvalds@kernel.org",
+      displayName: "Linus Torvalds",
+      avatarUrl: "https://avatars.githubusercontent.com/u/1024025?v=4",
+      profileUrl: "https://github.com/torvalds",
+      role: "pro",
+    },
+    gaearon: {
+      githubId: "810438",
+      username: "gaearon",
+      email: "dan@react.dev",
+      displayName: "Dan Abramov",
+      avatarUrl: "https://avatars.githubusercontent.com/u/810438?v=4",
+      profileUrl: "https://github.com/gaearon",
+      role: "developer",
+    },
+    shadcn: {
+      githubId: "124599",
+      username: "shadcn",
+      email: "shadcn@ui.dev",
+      displayName: "shadcn",
+      avatarUrl: "https://avatars.githubusercontent.com/u/124599?v=4",
+      profileUrl: "https://github.com/shadcn",
+      role: "developer",
+    },
+  };
+
+  const profile = DEMO_PROFILES[target] || DEMO_PROFILES.torvalds;
+  const user = {
+    id: `demo_${profile.username}`,
+    ...profile,
+    permissions: [
+      "roadmap:save",
+      "interview:generate",
+      "resume:generate",
+      "badge:embed",
+      "dashboard:history",
+    ],
+  };
+
+  req.logIn(user, (err) => {
+    if (err) logger.warn({ err }, "Demo session warning");
+  });
+
+  const token = createAuthToken(user);
+  logger.info({ username: user.username }, "Demo sign-in executed");
+
+  return res.json({
+    success: true,
+    token,
+    user,
+  });
+});
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────
 router.get("/me", (req: Request, res: Response) => {
@@ -178,6 +483,7 @@ router.get("/me", (req: Request, res: Response) => {
         id:          u.id,
         githubId:    u.githubId,
         username:    u.username,
+        email:       u.email || null,
         displayName: u.displayName || null,
         avatarUrl:   u.avatarUrl || null,
         profileUrl:  u.profileUrl || `https://github.com/${u.username}`,
@@ -205,6 +511,7 @@ router.get("/me", (req: Request, res: Response) => {
           id:          tokenUser.id,
           githubId:    tokenUser.githubId,
           username:    tokenUser.username,
+          email:       tokenUser.email || null,
           displayName: tokenUser.displayName,
           avatarUrl:   tokenUser.avatarUrl,
           profileUrl:  tokenUser.profileUrl,
@@ -223,193 +530,6 @@ router.get("/me", (req: Request, res: Response) => {
   }
 
   return res.json({ user: null, oauthEnabled: OAUTH_ENABLED });
-});
-
-// ── POST /api/auth/signin/developer ───────────────────────────────────────
-// Authenticate developer by verified GitHub username
-router.post("/signin/developer", async (req: Request, res: Response) => {
-  const { username } = req.body as { username?: string };
-  const cleanUsername = String(username ?? "").trim().replace(/^@/, "");
-
-  if (!cleanUsername) {
-    return res.status(400).json({ error: "validation_error", message: "GitHub username is required" });
-  }
-
-  try {
-    // Verify against GitHub Public API
-    const headers: Record<string, string> = {
-      "User-Agent": "DevScope-AI-Platform/2.6",
-      Accept: "application/vnd.github.v3+json",
-    };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
-    }
-
-    const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUsername)}`, {
-      headers,
-    });
-
-    if (ghRes.status === 404) {
-      return res.status(404).json({
-        error: "user_not_found",
-        message: `GitHub user "@${cleanUsername}" does not exist. Please check the spelling.`,
-      });
-    }
-
-    if (!ghRes.ok) {
-      logger.warn({ status: ghRes.status }, "GitHub API check error during developer signin");
-      // If rate limited, fallback to formatted synthetic profile
-    }
-
-    const ghData = ghRes.ok
-      ? await ghRes.json()
-      : {
-          id: `gh_${cleanUsername}`,
-          login: cleanUsername,
-          name: cleanUsername,
-          avatar_url: `https://github.com/${cleanUsername}.png`,
-          html_url: `https://github.com/${cleanUsername}`,
-        };
-
-    const user = await persistUser({
-      githubId: String(ghData.id || `gh_${cleanUsername}`),
-      username: ghData.login || cleanUsername,
-      displayName: ghData.name || null,
-      avatarUrl: ghData.avatar_url || `https://github.com/${cleanUsername}.png`,
-      profileUrl: ghData.html_url || `https://github.com/${cleanUsername}`,
-      role: "developer",
-    });
-
-    req.logIn(user, (err) => {
-      if (err) logger.warn({ err }, "Passport session logIn warning");
-    });
-
-    const token = createAuthToken(user);
-    logger.info({ username: user.username }, "Developer sign-in successful");
-
-    return res.json({
-      success: true,
-      token,
-      user,
-    });
-  } catch (err: any) {
-    logger.error({ err }, "Error during developer sign-in");
-    return res.status(500).json({
-      error: "signin_failed",
-      message: err.message || "Failed to sign in developer account",
-    });
-  }
-});
-
-// ── POST /api/auth/signin/pat ─────────────────────────────────────────────
-// Authenticate using a GitHub Personal Access Token (PAT) for Pro tier
-router.post("/signin/pat", async (req: Request, res: Response) => {
-  const { pat } = req.body as { pat?: string };
-  const token = String(pat ?? "").trim();
-
-  if (!token) {
-    return res.status(400).json({ error: "validation_error", message: "Personal Access Token is required" });
-  }
-
-  try {
-    const ghRes = await fetch("https://api.github.com/user", {
-      headers: {
-        "User-Agent": "DevScope-AI-Platform/2.6",
-        Authorization: `token ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    });
-
-    if (ghRes.status === 401) {
-      return res.status(401).json({
-        error: "invalid_token",
-        message: "The provided GitHub Personal Access Token is invalid or expired.",
-      });
-    }
-
-    if (!ghRes.ok) {
-      return res.status(502).json({
-        error: "github_error",
-        message: "Unable to verify token with GitHub API.",
-      });
-    }
-
-    const ghUser = await ghRes.json();
-    const user = await persistUser({
-      githubId: String(ghUser.id),
-      username: ghUser.login,
-      displayName: ghUser.name || null,
-      avatarUrl: ghUser.avatar_url,
-      profileUrl: ghUser.html_url,
-      role: "pro", // Elevated Pro Tier
-    });
-
-    req.logIn(user, (err) => {
-      if (err) logger.warn({ err }, "Passport session logIn warning");
-    });
-
-    const authToken = createAuthToken(user);
-    logger.info({ username: user.username, role: "pro" }, "Pro PAT sign-in successful");
-
-    return res.json({
-      success: true,
-      token: authToken,
-      user,
-    });
-  } catch (err: any) {
-    logger.error({ err }, "Error during PAT sign-in");
-    return res.status(500).json({ error: "pat_failed", message: "Failed to verify Personal Access Token" });
-  }
-});
-
-// ── POST /api/auth/signin/demo ────────────────────────────────────────────
-// Instant demo login for recruiters & testers
-router.post("/signin/demo", async (req: Request, res: Response) => {
-  const { username } = req.body as { username?: string };
-  const target = String(username ?? "torvalds").toLowerCase();
-
-  const DEMO_PROFILES: Record<string, any> = {
-    torvalds: {
-      githubId: "1024025",
-      username: "torvalds",
-      displayName: "Linus Torvalds",
-      avatarUrl: "https://avatars.githubusercontent.com/u/1024025?v=4",
-      profileUrl: "https://github.com/torvalds",
-      role: "pro",
-    },
-    gaearon: {
-      githubId: "810438",
-      username: "gaearon",
-      displayName: "Dan Abramov",
-      avatarUrl: "https://avatars.githubusercontent.com/u/810438?v=4",
-      profileUrl: "https://github.com/gaearon",
-      role: "developer",
-    },
-    shadcn: {
-      githubId: "124599",
-      username: "shadcn",
-      displayName: "shadcn",
-      avatarUrl: "https://avatars.githubusercontent.com/u/124599?v=4",
-      profileUrl: "https://github.com/shadcn",
-      role: "developer",
-    },
-  };
-
-  const profile = DEMO_PROFILES[target] || DEMO_PROFILES.torvalds;
-  const user = await persistUser(profile);
-
-  req.logIn(user, (err) => {
-    if (err) logger.warn({ err }, "Passport session logIn warning");
-  });
-
-  const token = createAuthToken(user);
-  logger.info({ username: user.username }, "Demo sign-in executed");
-
-  return res.json({
-    success: true,
-    token,
-    user,
-  });
 });
 
 // ── GET /api/auth/github ───────────────────────────────────────────────────
