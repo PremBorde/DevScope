@@ -9,6 +9,10 @@ import aiRouter from "./ai";
 import compareRouter from "./compare";
 import reportRouter from "./report";
 import debugRouter from "./debug";
+import badgeRouter from "./badge";
+import roadmapProgressRouter from "./roadmap-progress";
+import interviewRouter from "./interview";
+import resumeRouter from "./resume";
 
 const router: IRouter = Router();
 
@@ -24,6 +28,10 @@ router.use("/history", historyRouter);
 router.use("/roadmap", roadmapRouter);
 router.use("/analyses", analysesRouter);
 router.use("/ai", aiRouter);
+router.use("/ai", roadmapProgressRouter);
+router.use("/ai", interviewRouter);
+router.use("/ai", resumeRouter);
+router.use("/badge", badgeRouter);
 if (!isProd || debugScoreEnabled) {
   router.use("/debug-score", debugRouter);
 }

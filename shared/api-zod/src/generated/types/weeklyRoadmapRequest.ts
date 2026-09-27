@@ -13,6 +13,9 @@ export interface WeeklyRoadmapRequest {
   breakdown?: WeeklyRoadmapRequestBreakdown;
   weaknesses?: string[];
   strengths?: string[];
+  targetRole?: string;
+  languages?: string[];
+  topRepos?: string[];
   /** Force regeneration even if a cached roadmap exists */
   regenerate?: boolean;
 }

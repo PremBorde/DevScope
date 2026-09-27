@@ -9,6 +9,8 @@
 export interface WeeklyRoadmap {
   username: string;
   score: number;
+  targetRole?: string;
+  modelUsed?: string;
   week1: string[];
   week2: string[];
   week3: string[];

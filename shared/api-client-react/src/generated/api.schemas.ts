@@ -108,6 +108,9 @@ export interface WeeklyRoadmapRequest {
   breakdown?: WeeklyRoadmapRequestBreakdown;
   weaknesses?: string[];
   strengths?: string[];
+  targetRole?: string;
+  languages?: string[];
+  topRepos?: string[];
   /** Force regeneration even if a cached roadmap exists */
   regenerate?: boolean;
 }
@@ -115,6 +118,8 @@ export interface WeeklyRoadmapRequest {
 export interface WeeklyRoadmap {
   username: string;
   score: number;
+  targetRole?: string;
+  modelUsed?: string;
   week1: string[];
   week2: string[];
   week3: string[];

@@ -1371,3 +1371,63 @@ Changed unsupported model `"gemini-2.0-flash"` → `"gemini-3-flash-preview"` (m
 - Compare page shows green ▲ on winning metrics and generates verdict
 - Error states correctly distinguish 404 / 429 / 500
 - Dynamic page titles update correctly on route change
+
+---
+
+<a name="update-12"></a>
+## Update 12 — Gemini Flash Lite Real AI Integration, Dynamic Role Roadmaps, README Badges & OAuth Bridge
+
+**Date:** September 27, 2026
+**Type:** Major Enhancement & SaaS Upgrade
+
+---
+
+### Overview
+
+Eliminated all mock data fallbacks by rebuilding the Gemini AI integration to use real Gemini Flash Lite (`gemini-2.5-flash-lite`, `gemini-3.5-flash-lite`, `gemini-2.0-flash-lite`) via standard `GEMINI_API_KEY`. Rebuilt the roadmap engine into a dynamic, non-repeating 30-day career planner with target role selection (Full-Stack, Backend, AI/ML, Frontend, DevOps, OSS) and persistent checklist progress tracking. Added viral GitHub profile README SVG badges, a Recruiter Technical Interview Simulator, a Resume & LinkedIn Bullet Point Generator, and a resilient dual-mode OAuth token bridge.
+
+---
+
+### 1. Gemini AI Real Integration & Flash Lite Client
+- **File:** `shared/integrations-gemini-ai/src/client.ts` & `index.ts`
+- Removed requirement for Replit-specific `AI_INTEGRATIONS_GEMINI_BASE_URL`. Developers now only need `GEMINI_API_KEY`.
+- Introduced `generateContentWithFallback()` with prioritized model chain: `process.env.GEMINI_MODEL`, `gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `gemini-1.5-flash`.
+- Updated all backend AI call sites (`analyze.service.ts`, `compare.ts`, `roadmap.ts`, `ai.ts`) to use the resilient fallback model generator.
+
+---
+
+### 2. Dynamic, Non-Repetitive Roadmaps with Role Selector & Persistence
+- **File:** `backend/src/routes/ai.ts` & `backend/src/routes/roadmap-progress.ts`
+- Added `targetRole` support: Full-Stack, Backend & Systems, AI/ML, Frontend, DevOps, and Open Source.
+- Roadmap prompt now dynamically includes developer's real repositories, languages, and unique seed to eliminate identical or canned advice for the same user.
+- Created `GET /api/ai/progress/:username` and `POST /api/ai/progress/:username` with dual localStorage and backend persistence.
+
+---
+
+### 3. Embeddable GitHub Profile README SVG Badge
+- **File:** `backend/src/routes/badge.ts`
+- Endpoint: `GET /api/badge/:username.svg`
+- Returns a pixel-perfect, brutalist SVG badge with DevScope score (0-100) and grade tier with HTTP caching headers.
+- One-click copy markdown snippet added to the Analyze page for easy embedding in user profile READMEs.
+
+---
+
+### 4. Recruiter Technical Interview Simulator
+- **File:** `backend/src/routes/interview.ts` (`POST /api/ai/interview-prep`)
+- Generates 4 hard-hitting technical screen questions tailored directly to the developer's repositories and languages.
+- Provides recruiter evaluation signals and recommended talking points in an interactive accordion.
+
+---
+
+### 5. Resume & LinkedIn Bullet Point Generator
+- **File:** `backend/src/routes/resume.ts` (`POST /api/ai/resume-bullets`)
+- Converts top repositories into quantified bullets adhering to Google's "X-Y-Z" format ("Accomplished X, measured by Y, by doing Z") with one-click copy buttons.
+
+---
+
+### 6. Resilient Dual-Mode GitHub OAuth Bridge
+- **File:** `backend/src/routes/auth.ts` & `frontend/src/hooks/useAuth.ts`
+- Added signed auth token bridge alongside standard session cookies.
+- Callback passes signed token via URL parameter, stored in `localStorage` by frontend and attached as `Authorization: Bearer <token>`.
+- Resolves cross-port cookie blocking on `localhost:5173`/`3001` in local development and cross-domain restrictions in split Vercel/Render deployments.
+- Added user-facing error toast handling for cancelled or failed OAuth flows.

@@ -7,13 +7,15 @@ DevScope AI is a production-grade, Neobrutalist SaaS application that analyzes G
 ## ✨ Key Features
 
 - **GitHub Profile Scoring (0-100):** Deterministic scoring across 5 key categories (Repo Quality, Activity, Tech Diversity, Popularity, and Completeness).
-- **Gemini AI Insights:** Generates strengths, weaknesses, a comprehensive summary, and hiring recommendations based on raw profile metrics.
+- **Gemini AI Insights (Flash Lite / 3.5 / 2.5):** Real-time candidate evaluation, strengths, weaknesses, executive summary, and hiring recommendations.
+- **Dynamic 30-Day Growth Roadmap:** Select from 6 target career paths (Full-Stack, Backend, AI/ML, Frontend, DevOps, OSS) with persistent progress tracking saved across visits.
+- **Embeddable GitHub README Badges:** Live dynamic SVG score badge (`/api/badge/:username.svg`) for developers to paste directly into their GitHub profile READMEs.
+- **Recruiter Technical Interview Simulator:** AI predicts the exact technical questions engineering interviewers will ask based on your real projects, with evaluation criteria and talking points.
+- **Resume & Portfolio Bullet Point Generator:** Converts top repositories into quantified bullets following Google's X-Y-Z formula ("Accomplished X, measured by Y, by doing Z").
 - **Shareable Public Reports:** Create permanent, bookmarkable snapshots of analyses.
-- **Side-by-Side Comparisons:** Compare two GitHub profiles directly, complete with an AI verdict and metric-by-metric breakdown.
-- **Improvement Roadmap:** Generates an AI-driven, 30-day weekly improvement plan tailored to the user's weaknesses.
-- **Neobrutalist UI:** A premium, dynamic, and responsive React-based interface utilizing Framer Motion and GSAP for fluid animations.
-- **Robust Caching & Performance:** Leverages Redis for caching API responses to ensure lightning-fast subsequent loads and side-step GitHub API rate limits.
-- **Authentication:** Optional GitHub OAuth login with persistent database sessions.
+- **Side-by-Side Comparisons:** Compare two GitHub profiles directly with metric-by-metric breakdowns and AI verdicts.
+- **Resilient Dual-Mode Auth:** GitHub OAuth with signed JWT/token bridge + persistent database session support for local dev and split deployments.
+- **Neobrutalist UI:** A premium, responsive interface with GSAP animations, Framer Motion, and hard-shadow neobrutalist styling.
 
 ## 🏗️ Architecture & Tech Stack
 

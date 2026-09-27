@@ -1,16 +1,28 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Search, Github, LogOut, User, History, Scale, Menu, X, LayoutDashboard, GitCompare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const [location, setLocation] = useLocation();
-  const { user, isLoading, oauthEnabled, login, logout } = useAuth();
+  const { user, isLoading, oauthEnabled, login, logout, authError } = useAuth();
+  const { toast } = useToast();
   const [searchValue, setSearchValue] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (authError) {
+      toast({
+        title: "GitHub Authentication Failed",
+        description: authError,
+        variant: "destructive",
+      });
+    }
+  }, [authError]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchValue(e.target.value);

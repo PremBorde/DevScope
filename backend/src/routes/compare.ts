@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { analyzeUser, type AnalysisData } from "../services/analyze.service";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { generateContentWithFallback } from "@workspace/integrations-gemini-ai";
 import { logger } from "../lib/logger";
 import { redisGet, redisSet } from "../config/redis";
 import { AppError } from "../lib/errors";
@@ -119,15 +119,18 @@ async function generateAiVerdict(
 Return only the verdict text. No headers, no JSON, no markdown.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const { response, modelUsed } = await generateContentWithFallback({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { temperature: 0.7, maxOutputTokens: 2048 },
     });
     const text = response.text?.trim();
-    if (text && text.length > 20) return text;
+    if (text && text.length > 20) {
+      logger.info({ user1: u1, user2: u2, modelUsed }, "Gemini compare verdict generated successfully");
+      return text;
+    }
     return fallback;
-  } catch (err) {
-    logger.warn({ err }, "Gemini compare verdict failed — using fallback");
+  } catch (err: any) {
+    logger.warn({ err: err?.message || err }, "Gemini compare verdict failed — using fallback");
     return fallback;
   }
 }

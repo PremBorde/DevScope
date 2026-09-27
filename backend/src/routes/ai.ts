@@ -1,15 +1,26 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { generateContentWithFallback } from "@workspace/integrations-gemini-ai";
 import { redisGet, redisSet, redisDel } from "../config/redis";
 import { AppError } from "../lib/errors";
 
 const router = Router();
 
-const CACHE_TTL = 60 * 60 * 24 * 7; // 7 days
+const CACHE_TTL = 60 * 60 * 24 * 3; // 3 days cache (shorter to stay dynamic)
 
-function cacheKey(username: string) {
-  return `weekly-roadmap:${username.toLowerCase()}`;
+export type TargetRole = "fullstack" | "backend" | "ai_ml" | "frontend" | "devops" | "open_source";
+
+function cacheKey(username: string, targetRole: string) {
+  return `weekly-roadmap:${username.toLowerCase()}:${targetRole.toLowerCase()}`;
 }
+
+const ROLE_DESCRIPTIONS: Record<TargetRole, string> = {
+  fullstack: "Senior Full-Stack Engineer (React/TypeScript/Node/PostgreSQL)",
+  backend: "High-Performance Backend & Distributed Systems Engineer (Go/Rust/Node/Databases)",
+  ai_ml: "AI & Machine Learning Engineer (Python/PyTorch/LLM Orchestration/LangChain)",
+  frontend: "Lead Frontend Architect & UI Engineer (Next.js/React/Design Systems/Perf)",
+  devops: "Cloud Infrastructure & Platform Engineer (Docker/K8s/CI-CD/Terraform)",
+  open_source: "Open Source Creator & High-Impact Maintainer (Popular Libraries/Community)",
+};
 
 function buildPrompt(
   username: string,
@@ -17,120 +28,167 @@ function buildPrompt(
   breakdown: Record<string, number>,
   weaknesses: string[],
   strengths: string[],
+  targetRole: TargetRole,
+  languages: string[] = [],
+  topRepos: string[] = [],
 ): string {
+  const roleTitle = ROLE_DESCRIPTIONS[targetRole] ?? ROLE_DESCRIPTIONS.fullstack;
+  const seed = Date.now().toString(36); // Ensures variation
+
   return `
-You are a brutally honest senior engineering career mentor.
+You are an elite Staff Engineer and career advisor mentoring @${username}.
+They are targeting the role: ${roleTitle}.
 
-Generate a strict 4-week GitHub improvement roadmap for the developer @${username}.
-
-THEIR ANALYSIS:
-- Overall Score: ${score}/100
+ANALYSIS DATA:
+- Developer: @${username}
+- Current DevScope Score: ${score}/100
 - Score Breakdown: ${JSON.stringify(breakdown)}
-- Strengths: ${strengths.join("; ")}
-- Weaknesses: ${weaknesses.join("; ")}
+- Current Strengths: ${strengths.join("; ") || "General developer presence"}
+- Key Weaknesses: ${weaknesses.join("; ") || "Needs deeper project polish and documentation"}
+- Languages used: ${languages.join(", ") || "TypeScript, JavaScript"}
+- Key Repositories: ${topRepos.join(", ") || "General repositories"}
+- Run seed: ${seed}
+
+TASK:
+Craft a hyper-personalized, non-generic, 4-week GitHub roadmap specifically designed to level up this developer into a ${roleTitle}.
+Reference their actual technologies and weak metrics. Do NOT produce generic advice like "work hard" or "learn Git".
+
+WEEKLY THEMES:
+- Week 1: Immediate Weakness Fixes & Quick Portfolio Wins (<2 hours per task)
+- Week 2: Architectural Depth & Production Readiness (Testing, CI/CD, Documentation)
+- Week 3: ${roleTitle} Specialization (Flagship Feature, Benchmark, or Showcase)
+- Week 4: Industry Visibility & Open Source Polish (Live Demo, Community Packaging, Case Study)
 
 REQUIREMENTS:
-- Be brutally honest and hyper-specific. No generic advice.
-- Reference their ACTUAL numbers from the breakdown above.
-- Each week must have exactly 3 tasks.
-- Tasks must be concrete actions (not vague goals).
-- Focus areas: project quality, GitHub presence, technical depth, real-world readiness.
-- Week 1: Quick wins based on biggest weaknesses (things that take < 2 hours each)
-- Week 2: Project depth improvements (README, tests, CI/CD)
-- Week 3: Visibility & community presence (pinned repos, topics, profile README)
-- Week 4: Portfolio-level polish and new project kickoff
+- Exactly 3 tasks per week.
+- Each task must be a concrete, actionable bullet point (max 18 words).
+- Tailor specifically to the ${roleTitle} path.
 
-Return ONLY valid JSON. No markdown, no explanation, no extra text:
+Return ONLY a valid JSON object in this exact shape:
 {
-  "week1": ["task1", "task2", "task3"],
-  "week2": ["task1", "task2", "task3"],
-  "week3": ["task1", "task2", "task3"],
-  "week4": ["task1", "task2", "task3"]
+  "week1": ["task 1", "task 2", "task 3"],
+  "week2": ["task 1", "task 2", "task 3"],
+  "week3": ["task 1", "task 2", "task 3"],
+  "week4": ["task 1", "task 2", "task 3"]
 }
 `.trim();
 }
 
-function buildFallback(score: number): Record<string, string[]> {
-  if (score < 50) {
-    return {
-      week1: [
-        "Add a professional README.md to your top 3 repositories with description, setup instructions, and screenshots",
-        "Write a GitHub profile README that highlights your skills, current projects, and contact info",
-        "Add descriptive topics/tags to every public repository",
+function buildDynamicFallback(score: number, targetRole: TargetRole, username: string): Record<string, string[]> {
+  const roleTasks: Record<TargetRole, { w3: string[]; w4: string[] }> = {
+    fullstack: {
+      w3: [
+        "Architect and implement a secure JWT/OAuth auth flow with PostgreSQL in your flagship repo",
+        "Add an end-to-end testing suite using Playwright or Cypress to test key user journeys",
+        "Benchmark API response times and add Redis caching to improve database query latency",
       ],
-      week2: [
-        "Implement automated tests (unit or integration) in your most-starred repository",
-        "Add a GitHub Actions CI workflow that runs linting and tests on every PR",
-        "Break your largest repository into clearly named modules with documented functions",
+      w4: [
+        "Deploy your full-stack project to Render or Vercel with automated GitHub Actions CI/CD",
+        "Write an interactive API documentation page with Swagger/OpenAPI for client integration",
+        "Record an interactive 2-minute walkthrough GIF or Loom demo in the root README",
       ],
-      week3: [
-        "Pin your 6 best repositories to your profile — choose for variety and quality over quantity",
-        "Contribute to one open-source project: find a 'good first issue' and submit a PR",
-        "Publish a short technical blog post or dev.to article about a problem you recently solved",
+    },
+    backend: {
+      w3: [
+        "Add database migration scripts, connection pooling, and indexing to eliminate slow queries",
+        "Implement rate-limiting and structured JSON request logging with correlation IDs",
+        "Write benchmark tests measuring request throughput under simulated load",
       ],
-      week4: [
-        "Start a new project that solves a real problem you personally face — deploy it live",
-        "Add a CONTRIBUTING.md and issue templates to your best project",
-        "Record a 2-minute demo video for your top project and link it in the README",
+      w4: [
+        "Containerize the backend with multi-stage Docker builds and docker-compose orchestration",
+        "Implement health check, readiness probe, and Prometheus telemetry endpoints",
+        "Publish an Architecture Decision Record (ADR) explaining your database and caching choices",
       ],
-    };
-  }
-  if (score < 70) {
-    return {
-      week1: [
-        "Update all repository READMEs to include live demo links, tech stack badges, and screenshots",
-        "Audit and delete or archive repositories with zero activity and no README",
-        "Add a professional bio, website link, and location to your GitHub profile",
+    },
+    ai_ml: {
+      w3: [
+        "Build an AI agent or RAG pipeline repository demonstrating vector search and structured tool calls",
+        "Add evaluation benchmarks comparing prompt performance and token latency",
+        "Implement streaming responses and graceful error recovery for model timeouts",
       ],
-      week2: [
-        "Achieve >70% test coverage on your most-used library or API project",
-        "Set up semantic versioning and a CHANGELOG.md on your primary project",
-        "Add Docker support (Dockerfile + docker-compose) to your main project",
+      w4: [
+        "Deploy an interactive HuggingFace Spaces or Streamlit live demo showcasing your model pipeline",
+        "Add environment isolation with Docker and export dependencies with UV or Poetry",
+        "Write a technical writeup on LinkedIn or Dev.to explaining your model inference pipeline",
       ],
-      week3: [
-        "Open-source a reusable utility you've built — write thorough docs and publish to npm or PyPI",
-        "Give a lightning talk or write a detailed technical post about your architecture decisions",
-        "Engage in code reviews on at least 3 open-source PRs this week",
+    },
+    frontend: {
+      w3: [
+        "Audit and optimize Lighthouse performance score to 95+ (image formats, bundle splitting, fonts)",
+        "Build a reusable component library with Tailwind/CSS Modules documented in Storybook",
+        "Add fluid keyboard navigation and WCAG AA accessibility compliance to your primary UI",
       ],
-      week4: [
-        "Build and ship a full-stack project with auth, a database, and a live deployment URL",
-        "Add GitHub Discussions to your most active project and seed it with FAQs",
-        "Request and display testimonials or endorsements from collaborators in your README",
+      w4: [
+        "Add micro-interactions and smooth page transitions using Framer Motion or GSAP",
+        "Deploy a zero-config live preview on Vercel with preview deployments per pull request",
+        "Publish an open-source React hook or UI component to npm with full TypeScript definitions",
       ],
-    };
-  }
+    },
+    devops: {
+      w3: [
+        "Write reusable GitHub Actions composite workflows for linting, security scans, and test runs",
+        "Define your cloud infrastructure as code using Terraform or OpenTofu with modular structure",
+        "Set up Docker container vulnerability scanning with Trivy or Snyk in your CI pipeline",
+      ],
+      w4: [
+        "Deploy a Kubernetes manifest or Helm chart with resource limits and ingress configuration",
+        "Configure automated dependency updates with Renovate or Dependabot including auto-merge tests",
+        "Document disaster recovery and rollback strategies in a dedicated RUNBOOK.md",
+      ],
+    },
+    open_source: {
+      w3: [
+        "Add a CONTRIBUTING.md, Code of Conduct, and GitHub Issue/PR templates to your top repository",
+        "Set up semantic versioning and automated changelog generation using Release Please",
+        "Triage and resolve at least 2 open issues on well-known community repositories",
+      ],
+      w4: [
+        "Package and publish your utility library to npm/PyPI with zero runtime dependencies",
+        "Design a custom logo and interactive badge banner for your GitHub profile README",
+        "Submit a talk or showcase post on HackerNews, Reddit r/webdev, or relevant Discord servers",
+      ],
+    },
+  };
+
+  const roleSpecific = roleTasks[targetRole] || roleTasks.fullstack;
+
   return {
     week1: [
-      "Audit your top project for security vulnerabilities using Snyk or npm audit — fix all critical issues",
-      "Add comprehensive API documentation using OpenAPI/Swagger to your main project",
-      "Write architecture decision records (ADRs) for your major design choices",
+      `Update @${username}'s top repository README with a live demo link, architecture diagram, and feature list`,
+      "Add GitHub topics/tags and descriptive taglines to all public repositories to maximize discoverability",
+      "Archive or mark private stale/empty repositories to focus recruiter attention on quality",
     ],
     week2: [
-      "Achieve >90% test coverage across unit, integration, and e2e tests on your flagship project",
-      "Implement performance monitoring and error tracking (Sentry or similar) in a live project",
-      "Refactor your most complex module to follow SOLID principles — document the refactor",
+      "Add automated CI workflows (GitHub Actions) to run typechecks and tests on every commit",
+      "Implement comprehensive unit tests targeting at least 70% coverage on your core business logic",
+      "Draft a dedicated GitHub profile README highlighting your skills, current focus, and contact links",
     ],
-    week3: [
-      "Publish a detailed case study of your most impressive project to your blog or LinkedIn",
-      "Speak at a local meetup or submit a talk proposal to a technical conference",
-      "Mentor a junior developer publicly — create a YouTube tutorial or livestream a coding session",
-    ],
-    week4: [
-      "Build a proof-of-concept using a cutting-edge technology relevant to your domain",
-      "Create a comprehensive starter template or boilerplate and publish it to GitHub",
-      "Apply to speak at a major tech conference or submit an article to a recognized publication",
-    ],
+    week3: roleSpecific.w3,
+    week4: roleSpecific.w4,
   };
 }
 
 // POST /ai/roadmap
 router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) => {
-  const { username, score, breakdown, weaknesses, strengths, regenerate } = req.body as {
+  const {
+    username,
+    score,
+    breakdown,
+    weaknesses,
+    strengths,
+    targetRole = "fullstack",
+    languages = [],
+    topRepos = [],
+    regenerate,
+  } = req.body as {
     username: string;
     score: number;
     breakdown: Record<string, number>;
     weaknesses: string[];
     strengths: string[];
+    targetRole?: TargetRole;
+    languages?: string[];
+    topRepos?: string[];
     regenerate?: boolean;
   };
 
@@ -141,7 +199,18 @@ router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) 
     return next(new AppError(400, "validation_error", "score must be a number"));
   }
 
-  const key = cacheKey(username);
+  const role: TargetRole = [
+    "fullstack",
+    "backend",
+    "ai_ml",
+    "frontend",
+    "devops",
+    "open_source",
+  ].includes(targetRole)
+    ? targetRole
+    : "fullstack";
+
+  const key = cacheKey(username, role);
 
   if (regenerate) {
     await redisDel(key);
@@ -150,7 +219,7 @@ router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        req.log?.info({ username }, "Weekly roadmap served from cache");
+        req.log?.info({ username, targetRole: role }, "Weekly roadmap served from cache");
         res.json({ ...parsed, cached: true });
         return;
       } catch {
@@ -160,6 +229,7 @@ router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) 
   }
 
   let weeks: Record<string, string[]>;
+  let modelUsed = "fallback";
 
   try {
     const prompt = buildPrompt(
@@ -168,15 +238,22 @@ router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) 
       breakdown ?? {},
       Array.isArray(weaknesses) ? weaknesses : [],
       Array.isArray(strengths) ? strengths : [],
+      role,
+      Array.isArray(languages) ? languages : [],
+      Array.isArray(topRepos) ? topRepos : [],
     );
 
-    const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const { response, modelUsed: used } = await generateContentWithFallback({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.85,
+        maxOutputTokens: 4096,
+      },
     });
 
-    const raw = result.text?.trim() ?? "";
+    modelUsed = used;
+    const raw = response.text?.trim() ?? "";
     const parsed = JSON.parse(raw);
 
     if (!parsed.week1 || !parsed.week2 || !parsed.week3 || !parsed.week4) {
@@ -190,15 +267,17 @@ router.post("/roadmap", async (req: Request, res: Response, next: NextFunction) 
       week4: (parsed.week4 as string[]).slice(0, 3),
     };
 
-    req.log?.info({ username, score }, "Weekly roadmap generated by Gemini");
-  } catch (err) {
-    req.log?.warn({ err, username }, "Gemini weekly roadmap failed — using fallback");
-    weeks = buildFallback(score);
+    req.log?.info({ username, score, targetRole: role, modelUsed }, "Dynamic weekly roadmap generated by Gemini");
+  } catch (err: any) {
+    req.log?.warn({ err: err?.message || err, username, targetRole: role }, "Gemini weekly roadmap failed — using dynamic role fallback");
+    weeks = buildDynamicFallback(score, role, username);
   }
 
   const payload = {
     username: username.toLowerCase(),
     score,
+    targetRole: role,
+    modelUsed,
     ...weeks,
     generatedAt: new Date().toISOString(),
     cached: false,

@@ -8,7 +8,7 @@
  */
 
 import { db, analysesTable } from "@workspace/db";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { generateContentWithFallback } from "@workspace/integrations-gemini-ai";
 import { calculateScore, type ScoredUser, type ScoredRepo } from "./scoring.service";
 import { getCached, setCached } from "./github-cache.service";
 import { logger } from "../lib/logger";
@@ -172,12 +172,12 @@ Return ONLY a JSON object:
 }`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const { response, modelUsed } = await generateContentWithFallback({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { maxOutputTokens: 8192, responseMimeType: "application/json" },
+      config: { maxOutputTokens: 8192, responseMimeType: "application/json", temperature: 0.7 },
     });
     const parsed = JSON.parse(response.text ?? "{}");
+    logger.info({ username: user.login, modelUsed }, "Gemini AI insights generated successfully");
     return {
       strengths: parsed.strengths ?? [],
       weaknesses: parsed.weaknesses ?? [],
@@ -185,8 +185,8 @@ Return ONLY a JSON object:
       hiringRecommendation: parsed.hiringRecommendation ?? "consider",
       summary: parsed.summary ?? "No summary available.",
     };
-  } catch (err) {
-    logger.warn({ err, username: user.login }, "Gemini AI insights failed — using deterministic fallback");
+  } catch (err: any) {
+    logger.warn({ err: err?.message || err, username: user.login }, "Gemini AI insights failed — using deterministic fallback");
     const score = scoreBreakdown.total;
     return {
       strengths: [

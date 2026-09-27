@@ -136,6 +136,9 @@ export const PostAiRoadmapBody = zod.object({
   breakdown: zod.record(zod.string(), zod.number()).optional(),
   weaknesses: zod.array(zod.string()).optional(),
   strengths: zod.array(zod.string()).optional(),
+  targetRole: zod.string().optional(),
+  languages: zod.array(zod.string()).optional(),
+  topRepos: zod.array(zod.string()).optional(),
   regenerate: zod
     .boolean()
     .optional()
@@ -145,6 +148,8 @@ export const PostAiRoadmapBody = zod.object({
 export const PostAiRoadmapResponse = zod.object({
   username: zod.string(),
   score: zod.number(),
+  targetRole: zod.string().optional(),
+  modelUsed: zod.string().optional(),
   week1: zod.array(zod.string()),
   week2: zod.array(zod.string()),
   week3: zod.array(zod.string()),

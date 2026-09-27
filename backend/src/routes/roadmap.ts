@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { db, analysesTable } from "@workspace/db";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { generateContentWithFallback } from "@workspace/integrations-gemini-ai";
 import { eq, desc } from "drizzle-orm";
 import { AppError } from "../lib/errors";
 import { validateUsername } from "../middleware/validate-username";
@@ -94,10 +94,9 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const { response } = await generateContentWithFallback({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { maxOutputTokens: 4096, responseMimeType: "application/json" },
+      config: { maxOutputTokens: 4096, responseMimeType: "application/json", temperature: 0.7 },
     });
     const parsed = JSON.parse(response.text ?? "{}");
 
